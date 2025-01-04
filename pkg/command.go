@@ -61,7 +61,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 		Use:   "create",
 		Short: "Creates a Story",
 		RunE: func(_ *cobra.Command, args []string) error {
-			log.Println("Starting work with redmine")
+			log.Println("Starting to work on a new story...")
 
 			s := story.NewStory()
 			s.StorySuggestion = strings.Join(args, " ")
