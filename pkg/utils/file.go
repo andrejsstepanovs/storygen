@@ -45,8 +45,8 @@ func SanitizeFilename(filename string) string {
 	// Remove all characters not allowed in the pattern
 	filename = allowedPattern.ReplaceAllString(filename, "")
 
-	if len(filename) > 30 {
-		filename = filename[:30]
+	if len(filename) > 150 {
+		filename = filename[:150]
 	}
 	return filename
 }
