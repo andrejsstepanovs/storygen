@@ -123,7 +123,14 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			for i, title := range chapterTitles {
 				number := i + 1
-				log.Printf("Chapter %d - %s ...\n", number, title)
+
+				isLast := i == len(chapterTitles)-1
+				if isLast {
+				    // last chapter 60% shorter
+				    maxChapterWords = int(float64(maxChapterWords) * 0.6)
+                }
+
+                log.Printf("Chapter %d - %s (words %d) ...\n", number, title, maxChapterWords)
 				chapterText := llm.FigureStoryChapter(s, number, title, maxChapterWords)
 				s.Chapters[i].Text = chapterText
 			}
