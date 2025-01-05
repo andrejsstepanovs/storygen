@@ -3,6 +3,7 @@ package tts
 import (
 	"io"
 	"os"
+	"log"
 
 	"github.com/hyacinthus/mp3join"
 )
@@ -11,6 +12,7 @@ func Remove(files []string) error {
 	for _, file := range files {
 		err := os.Remove(file)
 		if err != nil {
+		    log.Printf("Error deleting the file %s", file)
 			return err
 		}
 	}
@@ -21,6 +23,7 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 	joiner := mp3join.New()
 
 	for i, file := range files {
+	    log.Printf("Processing %d file %s\n", i, file)
 		f, err := os.Open(file)
 		if err != nil {
 			return err
@@ -33,6 +36,7 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 		}
 
         if i < len(files)-1 {
+            log.Println("Adding inbetween file")
             f, err := os.Open(inbetweenFile)
             if err != nil {
                 return err
@@ -46,6 +50,7 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
         }
 	}
 
+    log.Println("Joining")
 	dest := joiner.Reader()
 
 	outFile, err := os.Create(output)
@@ -58,8 +63,6 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 	if err != nil {
 		return err
 	}
-
-    defer Remove(files)
 
 	return nil
 }

@@ -22,7 +22,13 @@ func TextToSpeech(voice openai.SpeechVoice, outputFilePath, textToSpeech, inbetw
 		}
 	}
 
-	return JoinMp3Files(files, outputFilePath, inbetweenFile)
+	err := JoinMp3Files(files, outputFilePath, inbetweenFile)
+	if err != nil {
+        return err
+    }
+
+    err = Remove(files)
+    return err
 }
 
 func openaiFile(voice openai.SpeechVoice, outputFilePath, textToSpeech string) error {

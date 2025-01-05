@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const inbetweenChaptersFile = "2-second-of-silence.mp3"
+const inbetweenChaptersFile = "2-seconds-of-silence.mp3"
 
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -72,7 +72,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			const readSpeedWordsInMinute = 180
 
-			minutes := time.Minute * 6
+			minutes := time.Minute * 8
 			chapterCount := int(minutes.Minutes() / 2)
 
 			s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
@@ -122,13 +122,18 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			}
 
 			maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / len(chapterTitles)
+            log.Printf("Default chapter words: %d\n", maxChapterWords)
 
 			for i, title := range chapterTitles {
 				number := i + 1
 
-				isLast := i == len(chapterTitles)-1
-				if isLast {
-				    // last chapter 60% shorter
+                // first chapter 80% shorter
+                if number == 1 {
+                    maxChapterWords = int(float64(maxChapterWords) * 0.8)
+                }
+
+				// last chapter 60% shorter
+				if number == len(chapterTitles) {
 				    maxChapterWords = int(float64(maxChapterWords) * 0.6)
                 }
 
@@ -156,7 +161,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
             log.Println("Text to Speech...")
 			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
 
-            log.Println("\nSuccess!\n")
+            log.Println("Success!\n")
             log.Printf("Story: %s\n", s.Title)
             log.Printf("Summary: %s\n\n", s.Summary)
             log.Printf("json: %s\n", file)
