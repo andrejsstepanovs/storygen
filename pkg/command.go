@@ -121,19 +121,20 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			for i, title := range chapterTitles {
 				number := i + 1
+                wordCount := maxChapterWords
 
                 // first chapter 80% shorter
                 if number == 1 {
-                    maxChapterWords = int(float64(maxChapterWords) * 0.8)
+                    wordCount = int(float64(maxChapterWords) * 0.8)
                 }
 
 				// last chapter 60% shorter
 				if number == len(chapterTitles) {
-				    maxChapterWords = int(float64(maxChapterWords) * 0.6)
+				    wordCount = int(float64(maxChapterWords) * 0.6)
                 }
 
-                log.Printf("Chapter %d - %s (words %d) ...\n", number, title, maxChapterWords)
-				chapterText := llm.FigureStoryChapter(s, number, title, maxChapterWords)
+                log.Printf("Chapter %d - %s (words %d) ...\n", number, title, wordCount)
+				chapterText := llm.FigureStoryChapter(s, number, title, wordCount)
 				s.Chapters[i].Text = chapterText
 			}
 
