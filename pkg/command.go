@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const inbetweenChaptersFile = "1-second-of-silence.mp3"
+
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "story",
@@ -47,9 +49,8 @@ func newLoadCommand(llm *ai.AI) *cobra.Command {
 
 			text := s.BuildContent()
 			soundFile := file[:len(file)-4] + "mp3"
-			//err := tts.DeepgramTextToSpeech(soundFile, text)
-			//err := tts.OpenAITextToSpeech(openai.VoiceAlloy, soundFile, text)
-			err := tts.OpenAITextToSpeech(openai.VoiceShimmer, soundFile, text)
+
+			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
 
 			return err
 		},
@@ -87,7 +88,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			log.Printf("TimePeriod: %s", s.TimePeriod.ToJson())
 
 			log.Println("Morales...")
-			//validMorales := llm.FigureStoryMorales(s, story.GetAvailableStoryMorales())
+			//validMorales := llm.FigureStoryMorales(s, story.GetAvailableStoryMorales()) // results in predictable stories all about courage
 			validMorales := story.GetRandomMorales(3, story.GetAvailableStoryMorales())
 
 			randomMoraleCount := rand.Intn(3) + 1
@@ -137,21 +138,28 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			log.Println("Story Title...")
 			s.Title = llm.FigureStoryTitle(s)
-			log.Println("Success")
+			log.Printf("Picked title: %s\n", s.Title)
+
 
 			file, err := utils.SaveTextToFile(s.Title, "json", s.ToJson())
 			if err != nil {
 				log.Println("Failed to save story")
 				return err
 			}
-			log.Println(s.ToJson())
+            log.Println("json saved")
+			//log.Println(s.ToJson())
 
 			text := s.BuildContent()
 			soundFile := file[:len(file)-4] + "mp3"
-			//err := tts.DeepgramTextToSpeech(soundFile, text)
-			//err := tts.OpenAITextToSpeech(openai.VoiceAlloy, soundFile, text)
-			err = tts.OpenAITextToSpeech(openai.VoiceShimmer, soundFile, text)
 
+            log.Println("Text to Speech...")
+			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
+
+            log.Println("\nSuccess!\n")
+            log.Printf("Story: %s\n", s.Title)
+            log.Printf("Summary: %s\n\n", s.Summary)
+            log.Printf("json: %s\n", file)
+            log.Printf("mp3: %s\n", soundFile)
 			return err
 		},
 	}

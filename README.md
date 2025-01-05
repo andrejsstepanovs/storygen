@@ -30,3 +30,6 @@ go run main.go story create a story about blue dog and cat with big ears
 # The_Scientific_Adventures_of_M.json
 # The_Scientific_Adventures_of_M.mp3
 ```
+
+
+silent mp3 file from: https://github.com/anars/blank-audio

@@ -17,10 +17,10 @@ func Remove(files []string) error {
     return nil
 }
 
-func JoinMp3Files(files []string, output string) error {
+func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 	joiner := mp3join.New()
 
-	for _, file := range files {
+	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return err
@@ -31,6 +31,19 @@ func JoinMp3Files(files []string, output string) error {
 		if err != nil {
 			return err
 		}
+
+        if i < len(files)-1 {
+            f, err := os.Open(inbetweenFile)
+            if err != nil {
+                return err
+            }
+            defer f.Close()
+
+            err = joiner.Append(f)
+            if err != nil {
+                return err
+            }
+        }
 	}
 
 	dest := joiner.Reader()
