@@ -14,9 +14,10 @@ import (
 	"github.com/andrejsstepanovs/storygen/pkg/utils"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-const inbetweenChaptersFile = "2-seconds-of-silence.mp3"
+const inbetweenChaptersFile = ""
 
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -70,18 +71,12 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			s.Structure = story.GetRandomStoryStructure()
 			s.TimePeriod = story.GetRandomTimePeriods(1)[0]
 
-			const readSpeedWordsInMinute = 180
+			readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
 
 			minutes := time.Minute * 8
 			chapterCount := int(minutes.Minutes() / 2)
 
 			s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
-
-// produces good stories
-// 			s.Structure = story.Structure{
-// 				Name:        "Action adventure with animals",
-// 				Description: "A story with a lot of action and adventure, with animals as the main characters.",
-// 			}
 
 			log.Printf("Length: %s", s.Length)
 			log.Printf("Structure: %s", s.Structure.ToJson())

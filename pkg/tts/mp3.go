@@ -35,7 +35,7 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 			return err
 		}
 
-        if i < len(files)-1 {
+        if inbetweenFile != "" && i < len(files)-1 {
             log.Println("Adding inbetween file")
             f, err := os.Open(inbetweenFile)
             if err != nil {
