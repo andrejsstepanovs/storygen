@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const inbetweenChaptersFile = "1-second-of-silence.mp3"
+const inbetweenChaptersFile = "2-second-of-silence.mp3"
 
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -77,10 +77,11 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
 
-			s.Structure = story.Structure{
-				Name:        "Action adventure with animals",
-				Description: "A story with a lot of action and adventure, with animals as the main characters.",
-			}
+// produces good stories
+// 			s.Structure = story.Structure{
+// 				Name:        "Action adventure with animals",
+// 				Description: "A story with a lot of action and adventure, with animals as the main characters.",
+// 			}
 
 			log.Printf("Length: %s", s.Length)
 			log.Printf("Structure: %s", s.Structure.ToJson())
