@@ -90,8 +90,9 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			chapter := "Chapter"
 			if toLang != "english" {
+				title := s.Title
 				s, chapter = translate(llm, s, toLang)
-				_, err = utils.SaveTextToFile(toLang+"_"+s.Title, "json", s.ToJson())
+				_, err = utils.SaveTextToFile(toLang+"_"+title, "json", s.ToJson())
 				if err != nil {
 					return err
 				}
