@@ -126,7 +126,7 @@ func removeChars(text string) string {
 	return text
 }
 
-func (s *Story) BuildContent() string {
+func (s *Story) BuildContent(chapter string) string {
 	content := make([]string, 0)
 
 	title := removeChars(s.Title)
@@ -134,7 +134,7 @@ func (s *Story) BuildContent() string {
 	content = append(content, title)
 	content = append(content, "")
 	for _, c := range s.Chapters {
-		content = append(content, fmt.Sprintf("Chapter %d. %s", c.Number, strings.TrimRight(removeChars(c.Title), ".")+"."))
+		content = append(content, fmt.Sprintf("%s %d. %s", chapter, c.Number, strings.TrimRight(removeChars(c.Title), ".")+"."))
 		content = append(content, removeChars(trimChapterTitleFromText(c)))
 		content = append(content, "\n\n\n")
 	}

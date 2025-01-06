@@ -52,14 +52,14 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			toLang := args[1]
 			log.Printf("Translating to: %s", toLang)
 
-			translated := translate(llm, *s, toLang)
+			translated, chapter := translate(llm, *s, toLang)
 
-			text := translated.BuildContent()
+			text := translated.BuildContent(chapter)
 			soundFile := file[:len(file)-4] + "mp3"
 
 			log.Println("Text to Speech...")
 			file = toLang + "_" + file
-			ToVoice(translated, file)
+			ToVoice(translated, file, text)
 			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
 
 			return err
@@ -87,8 +87,10 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			if toLang == "" {
 				toLang = "english"
 			}
+
+			chapter := "Chapter"
 			if toLang != "english" {
-				s = translate(llm, s, toLang)
+				s, chapter = translate(llm, s, toLang)
 				_, err = utils.SaveTextToFile(toLang+"_"+s.Title, "json", s.ToJson())
 				if err != nil {
 					return err
@@ -97,15 +99,14 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 				file = toLang + "_" + file
 			}
 
-			ToVoice(s, file)
+			ToVoice(s, file, s.BuildContent(chapter))
 
 			return err
 		},
 	}
 }
 
-func ToVoice(s story.Story, file string) {
-	content := s.BuildContent()
+func ToVoice(s story.Story, file, content string) {
 	soundFile := file[:len(file)-4] + "mp3"
 
 	fmt.Println(content)
@@ -124,7 +125,7 @@ func ToVoice(s story.Story, file string) {
 	log.Printf("mp3: %s\n", soundFile)
 }
 
-func translate(llm *ai.AI, s story.Story, toLang string) story.Story {
+func translate(llm *ai.AI, s story.Story, toLang string) (story.Story, string) {
 	translated := story.Story{}
 
 	log.Printf("Translating Title %s ...\n", s.Title)
@@ -139,9 +140,13 @@ func translate(llm *ai.AI, s story.Story, toLang string) story.Story {
 			Text:   llm.TranslateText(c.Text, toLang),
 		})
 	}
+
+	chapter := llm.TranslateText("Chapter", toLang)
+	log.Printf("Chapter is: %s\n", chapter)
+
 	log.Println("Translation Done")
 
-	return translated
+	return translated, chapter
 }
 
 func buildStory(llm *ai.AI, suggestion string) story.Story {
