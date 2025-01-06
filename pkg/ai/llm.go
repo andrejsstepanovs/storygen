@@ -379,3 +379,38 @@ func (a *AI) FigureStoryLocation(storyEl story.Story) string {
 
 	return templateResponse
 }
+
+func (a *AI) TranslateText(englishText, toLanguage string) string {
+	templatePrompt := gollm.NewPromptTemplate(
+		"Translator",
+		fmt.Sprintf("Analyze given English language text and provide good translation in **%s** language).", toLanguage),
+		"Inspect given English text carefully and provide good translation. **This is the text you need to translate**:\n```\n{{.Text}}\n```\n\n"+
+			"Translate from English to {{.Language}}.\n"+
+			"Maintain the feeling and vibe of the original text. "+
+			"It will be part of bed time story for children so translate accordingly. "+
+			"Children should be able to easily understand the translation. "+
+			"Keep original text newlines as is.",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are translating a children story book."),
+			gollm.WithOutput("Answer only with the translated text. No yapping. No other explanations or unrelated notes or remarks are necessary. Dont explain yourself. Answer only with the translation."),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"Text":     englishText,
+		"Language": toLanguage,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt)
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	templateResponse = gollm.CleanResponse(templateResponse)
+
+	return templateResponse
+}

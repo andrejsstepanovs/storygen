@@ -74,8 +74,23 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			}
 			log.Println("JSON saved")
 
+			toLang := viper.GetString("STORYGEN_LANGUAGE")
+			if toLang == "" {
+				toLang = "english"
+			}
+			if toLang != "english" {
+				s = translate(llm, s, toLang)
+				_, err = utils.SaveTextToFile(toLang+"_"+s.Title, "json", s.ToJson())
+				if err != nil {
+					return err
+				}
+				log.Println(toLang, " JSON saved")
+			}
+
 			content := s.BuildContent()
 			soundFile := file[:len(file)-4] + "mp3"
+
+			fmt.Println(content)
 
 			log.Println("Text to Speech...")
 			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
@@ -91,6 +106,21 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 	}
 }
 
+func translate(llm *ai.AI, s story.Story, toLang string) story.Story {
+	translated := story.Story{}
+
+	translated.Title = llm.TranslateText(s.Title, toLang)
+	for _, c := range s.Chapters {
+		translated.Chapters = append(translated.Chapters, story.Chapter{
+			Number: c.Number,
+			Title:  llm.TranslateText(c.Title, toLang),
+			Text:   llm.TranslateText(c.Text, toLang),
+		})
+	}
+
+	return translated
+}
+
 func buildStory(llm *ai.AI, suggestion string) story.Story {
 	s := story.NewStory()
 	s.StorySuggestion = suggestion
@@ -99,6 +129,9 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	s.TimePeriod = story.GetRandomTimePeriods(1)[0]
 
 	readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
+	if readSpeedWordsInMinute == 0 {
+		log.Fatalln("Please set the STORYGEN_READSPEED environment variable")
+	}
 
 	minutes := time.Minute * 8
 	chapterCount := int(minutes.Minutes() / 2)
