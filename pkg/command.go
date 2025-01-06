@@ -114,8 +114,6 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 func ToVoice(s story.Story, file, content string) {
 	soundFile := file[:len(file)-4] + "mp3"
 
-	fmt.Println(content)
-
 	log.Println("Text to Speech...")
 	err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
 	if err != nil {
