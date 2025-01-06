@@ -161,8 +161,15 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 		log.Fatalln("Please set the STORYGEN_READSPEED environment variable")
 	}
 
-	minutes := time.Minute * 8
+	lengthInMin := viper.GetInt64("STORYGEN_LENGTH_IN_MIN")
+	if lengthInMin == 0 {
+		lengthInMin = 8
+	}
+	minutes := time.Minute * time.Duration(lengthInMin)
 	chapterCount := int(minutes.Minutes() / 2)
+	if chapterCount < 3 {
+		chapterCount = 3
+	}
 
 	s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
 
