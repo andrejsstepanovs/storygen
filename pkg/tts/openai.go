@@ -24,19 +24,24 @@ func TextToSpeech(voice openai.SpeechVoice, outputFilePath, textToSpeech, inbetw
 
 	err := JoinMp3Files(files, outputFilePath, inbetweenFile)
 	if err != nil {
-        return err
-    }
+		return err
+	}
 
-    err = Remove(files)
-    return err
+	err = Remove(files)
+	return err
 }
 
 func openaiFile(voice openai.SpeechVoice, outputFilePath, textToSpeech string) error {
+	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
+	if speed == 0 {
+		speed = 0.9
+	}
 	request := openai.CreateSpeechRequest{
-		Model: openai.TTSModel1HD,
-		Voice: voice,
-		Input: textToSpeech,
-		Speed: 0.9,
+		Model:          openai.TTSModel1HD,
+		ResponseFormat: openai.SpeechResponseFormatMp3,
+		Voice:          voice,
+		Input:          textToSpeech,
+		Speed:          speed,
 	}
 
 	c := openai.NewClient(viper.GetString("OPENAI_API_KEY"))
@@ -53,8 +58,6 @@ func openaiFile(voice openai.SpeechVoice, outputFilePath, textToSpeech string) e
 
 	return err
 }
-
-
 
 func chunkText(text string, chunkSize int) []string {
 	if chunkSize <= 0 {

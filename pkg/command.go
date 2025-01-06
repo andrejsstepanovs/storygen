@@ -32,25 +32,34 @@ func NewCommand() (*cobra.Command, error) {
 
 	cmd.AddCommand(
 		newWorkCommand(llm),
-		newLoadCommand(llm),
+		newTranslateCommand(llm),
 	)
 
 	return cmd, nil
 }
 
-func newLoadCommand(llm *ai.AI) *cobra.Command {
+func newTranslateCommand(llm *ai.AI) *cobra.Command {
 	return &cobra.Command{
-		Use:   "load",
-		Short: "Load a Story",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			file := "Title_Bruno_and_the_Shadow_Beast_A_Tale_of_Courage_and_Light.json"
+		Use:   "translate",
+		Short: "Load a Story from JSON (first arg) and translate to language (second param)",
+		RunE: func(_ *cobra.Command, args []string) error {
+			file := args[0]
+			log.Printf("Loading story from file: %s", file)
 
 			s := &story.Story{}
 			json.Unmarshal(utils.LoadTextFromFile(file), s)
 
-			text := s.BuildContent()
+			toLang := args[1]
+			log.Printf("Translating to: %s", toLang)
+
+			translated := translate(llm, *s, toLang)
+
+			text := translated.BuildContent()
 			soundFile := file[:len(file)-4] + "mp3"
 
+			log.Println("Text to Speech...")
+			file = toLang + "_" + file
+			ToVoice(translated, file)
 			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
 
 			return err
@@ -85,38 +94,52 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 					return err
 				}
 				log.Println(toLang, " JSON saved")
+				file = toLang + "_" + file
 			}
 
-			content := s.BuildContent()
-			soundFile := file[:len(file)-4] + "mp3"
+			ToVoice(s, file)
 
-			fmt.Println(content)
-
-			log.Println("Text to Speech...")
-			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
-
-			log.Println("Success!")
-			log.Println("")
-			log.Printf("Story: %s\n", s.Title)
-			log.Printf("Summary: %s\n\n", s.Summary)
-			log.Printf("json: %s\n", file)
-			log.Printf("mp3: %s\n", soundFile)
 			return err
 		},
 	}
 }
 
+func ToVoice(s story.Story, file string) {
+	content := s.BuildContent()
+	soundFile := file[:len(file)-4] + "mp3"
+
+	fmt.Println(content)
+
+	log.Println("Text to Speech...")
+	err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println("Success!")
+	log.Println("")
+	log.Printf("Story: %s\n", s.Title)
+	log.Printf("Summary: %s\n\n", s.Summary)
+	log.Printf("json: %s\n", file)
+	log.Printf("mp3: %s\n", soundFile)
+}
+
 func translate(llm *ai.AI, s story.Story, toLang string) story.Story {
 	translated := story.Story{}
 
+	log.Printf("Translating Title %s ...\n", s.Title)
 	translated.Title = llm.TranslateText(s.Title, toLang)
+	log.Printf("Translated Title %s ...\n", translated.Title)
+
 	for _, c := range s.Chapters {
+		log.Printf("Translating Chapter %d - %s ...\n", c.Number, c.Title)
 		translated.Chapters = append(translated.Chapters, story.Chapter{
 			Number: c.Number,
 			Title:  llm.TranslateText(c.Title, toLang),
 			Text:   llm.TranslateText(c.Text, toLang),
 		})
 	}
+	log.Println("Translation Done")
 
 	return translated
 }
