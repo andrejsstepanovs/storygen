@@ -171,7 +171,10 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 			"Same goes for picked story morales. Summary and plan should match picked story morales. "+
 			"Story plan should be quite brief and short list of things that will happen in the story with no specifics. Details will be written later on. "+
 			"Write the plan in a way that the writer later on will not be much constrained with. We want to keep story plan loose and flexible (no details). "+
-			"It will be part of bed time story for children.",
+			"It will be part of bed time story for children.\n"+
+			"Be creative and make sure that story is moving forward fast so it is engaging and fun to read. "+
+			"Plan a story in a way where there are no boring parts and plot is moving forward fast. "+
+			"Consider adding some plot twists and funny interactions between characters.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a children story book."),
 			gollm.WithOutput("Story summary and story plan to help the writer later on when they will write the story."),
