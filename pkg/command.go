@@ -65,104 +65,109 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			log.Println("Starting to work on a new story...")
 
-			s := story.NewStory()
-			s.StorySuggestion = strings.Join(args, " ")
-			s.Protagonists = story.GetRandomProtagonists(1)
-			s.Structure = story.GetRandomStoryStructure()
-			s.TimePeriod = story.GetRandomTimePeriods(1)[0]
-
-			readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
-
-			minutes := time.Minute * 8
-			chapterCount := int(minutes.Minutes() / 2)
-
-			s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
-
-			log.Printf("Length: %s", s.Length)
-			log.Printf("Structure: %s", s.Structure.ToJson())
-			log.Printf("Protagonists: %s", s.Protagonists[0].ToJson())
-			log.Printf("TimePeriod: %s", s.TimePeriod.ToJson())
-
-			log.Println("Morales...")
-			//validMorales := llm.FigureStoryMorales(s, story.GetAvailableStoryMorales()) // results in predictable stories all about courage
-			validMorales := story.GetRandomMorales(3, story.GetAvailableStoryMorales())
-
-			randomMoraleCount := rand.Intn(3) + 1
-			s.Morales = story.GetRandomMorales(randomMoraleCount, validMorales)
-
-			picked := make([]string, len(s.Morales))
-			for i, m := range s.Morales {
-				picked[i] = m.Name
-			}
-			log.Printf("Picked Morales: %s", strings.Join(picked, ", "))
-
-			log.Println("Villain...")
-			s.Villain = llm.FigureStoryVillain(s)
-			log.Println("Location...")
-			s.Location = llm.FigureStoryLocation(s)
-			log.Println("Plan...")
-			s.Plan = llm.FigureStoryPlan(s)
-			log.Println("Summary...")
-			s.Summary = llm.FigureStorySummary(s)
-			log.Println("Chapter Titles...")
-			chapterTitles := llm.FigureStoryChapterTitles(s, chapterCount)
-			log.Printf("Built (%d) Chapters", len(chapterTitles))
-
-			for i, title := range chapterTitles {
-				number := i + 1
-				s.Chapters = append(s.Chapters, story.Chapter{
-					Number: number,
-					Title:  title,
-				})
-			}
-
-			maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / len(chapterTitles)
-            log.Printf("Default chapter words: %d\n", maxChapterWords)
-
-			for i, title := range chapterTitles {
-				number := i + 1
-                wordCount := maxChapterWords
-
-                // first chapter 80% shorter
-                if number == 1 {
-                    wordCount = int(float64(maxChapterWords) * 0.8)
-                }
-
-				// last chapter 60% shorter
-				if number == len(chapterTitles) {
-				    wordCount = int(float64(maxChapterWords) * 0.6)
-                }
-
-                log.Printf("Chapter %d - %s (words %d) ...\n", number, title, wordCount)
-				chapterText := llm.FigureStoryChapter(s, number, title, wordCount)
-				s.Chapters[i].Text = chapterText
-			}
-
-			log.Println("Story Title...")
-			s.Title = llm.FigureStoryTitle(s)
-			log.Printf("Picked title: %s\n", s.Title)
-
+			suggestion := strings.Join(args, " ")
+			s := buildStory(llm, suggestion)
 
 			file, err := utils.SaveTextToFile(s.Title, "json", s.ToJson())
 			if err != nil {
-				log.Println("Failed to save story")
 				return err
 			}
-            log.Println("json saved")
-			//log.Println(s.ToJson())
+			log.Println("JSON saved")
 
-			text := s.BuildContent()
+			content := s.BuildContent()
 			soundFile := file[:len(file)-4] + "mp3"
 
-            log.Println("Text to Speech...")
-			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
+			log.Println("Text to Speech...")
+			err = tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
 
-            log.Println("Success!\n")
-            log.Printf("Story: %s\n", s.Title)
-            log.Printf("Summary: %s\n\n", s.Summary)
-            log.Printf("json: %s\n", file)
-            log.Printf("mp3: %s\n", soundFile)
+			log.Println("Success!")
+			log.Println("")
+			log.Printf("Story: %s\n", s.Title)
+			log.Printf("Summary: %s\n\n", s.Summary)
+			log.Printf("json: %s\n", file)
+			log.Printf("mp3: %s\n", soundFile)
 			return err
 		},
 	}
+}
+
+func buildStory(llm *ai.AI, suggestion string) story.Story {
+	s := story.NewStory()
+	s.StorySuggestion = suggestion
+	s.Protagonists = story.GetRandomProtagonists(1)
+	s.Structure = story.GetRandomStoryStructure()
+	s.TimePeriod = story.GetRandomTimePeriods(1)[0]
+
+	readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
+
+	minutes := time.Minute * 8
+	chapterCount := int(minutes.Minutes() / 2)
+
+	s.Length = fmt.Sprintf("%d minutes to read", int(minutes.Minutes()))
+
+	log.Printf("Length: %s", s.Length)
+	log.Printf("Structure: %s", s.Structure.ToJson())
+	log.Printf("Protagonists: %s", s.Protagonists[0].ToJson())
+	log.Printf("TimePeriod: %s", s.TimePeriod.ToJson())
+
+	log.Println("Morales...")
+	//validMorales := llm.FigureStoryMorales(s, story.GetAvailableStoryMorales()) // results in predictable stories all about courage
+	validMorales := story.GetRandomMorales(3, story.GetAvailableStoryMorales())
+
+	randomMoraleCount := rand.Intn(3) + 1
+	s.Morales = story.GetRandomMorales(randomMoraleCount, validMorales)
+
+	picked := make([]string, len(s.Morales))
+	for i, m := range s.Morales {
+		picked[i] = m.Name
+	}
+	log.Printf("Picked Morales: %s", strings.Join(picked, ", "))
+
+	log.Println("Villain...")
+	s.Villain = llm.FigureStoryVillain(s)
+	log.Println("Location...")
+	s.Location = llm.FigureStoryLocation(s)
+	log.Println("Plan...")
+	s.Plan = llm.FigureStoryPlan(s)
+	log.Println("Summary...")
+	s.Summary = llm.FigureStorySummary(s)
+	log.Println("Chapter Titles...")
+	chapterTitles := llm.FigureStoryChapterTitles(s, chapterCount)
+	log.Printf("Built (%d) Chapters", len(chapterTitles))
+
+	for i, title := range chapterTitles {
+		number := i + 1
+		s.Chapters = append(s.Chapters, story.Chapter{
+			Number: number,
+			Title:  title,
+		})
+	}
+
+	maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / len(chapterTitles)
+	log.Printf("Default chapter words: %d\n", maxChapterWords)
+
+	for i, title := range chapterTitles {
+		number := i + 1
+		wordCount := maxChapterWords
+
+		// first chapter 80% shorter
+		if number == 1 {
+			wordCount = int(float64(maxChapterWords) * 0.8)
+		}
+
+		// last chapter 60% shorter
+		if number == len(chapterTitles) {
+			wordCount = int(float64(maxChapterWords) * 0.6)
+		}
+
+		log.Printf("Chapter %d - %s (words %d) ...\n", number, title, wordCount)
+		chapterText := llm.FigureStoryChapter(s, number, title, wordCount)
+		s.Chapters[i].Text = chapterText
+	}
+
+	log.Println("Story Title...")
+	s.Title = llm.FigureStoryTitle(s)
+	log.Printf("Picked title: %s\n", s.Title)
+
+	return s
 }
