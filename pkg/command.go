@@ -49,10 +49,14 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			s := &story.Story{}
 			json.Unmarshal(utils.LoadTextFromFile(file), s)
 
-			toLang := args[1]
-			log.Printf("Translating to: %s", toLang)
-
-			translated, chapter := translate(llm, *s, toLang)
+			translated := *s
+			chapter := "Chapter"
+			toLang := "english"
+			if len(args) == 2 {
+				toLang = args[1]
+				log.Printf("Translating to: %s", toLang)
+				translated, chapter = translate(llm, *s, toLang)
+			}
 
 			text := translated.BuildContent(chapter)
 			soundFile := file[:len(file)-4] + "mp3"
