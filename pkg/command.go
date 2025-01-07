@@ -68,7 +68,6 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			text := translated.BuildContent(chapter, theEnd)
 			soundFile := file[:len(file)-4] + "mp3"
 
-			log.Println("Text to Speech...")
 			file = toLang + "_" + file
 			ToVoice(translated, file, text)
 			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
@@ -313,6 +312,18 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	log.Println("Story Title...")
 	s.Title = llm.FigureStoryTitle(s)
 	log.Printf("Picked title: %s\n", s.Title)
+
+	log.Println("Pre reading...")
+	text := s.BuildContent(story.TextChapter, story.TextTheEnd)
+	problems := llm.FigureStoryLogicalProblems(text)
+	log.Printf("Found problems: %d\n", len(problems))
+
+	for _, problem := range problems {
+		log.Printf("Problem in Chapter: %d. %s (%d) \n", problem.Chapter, problem.ChapterName, len(problem.Issues))
+		for _, issue := range problem.Issues {
+			log.Printf("- %s\n", issue)
+		}
+	}
 
 	return s
 }

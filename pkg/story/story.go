@@ -135,7 +135,7 @@ func (s *Story) BuildContent(chapter, theEnd string) string {
 	title := removeChars(s.Title)
 	title = strings.TrimLeft(title, "Title: ")
 	content = append(content, title)
-	content = append(content, "")
+	content = append(content, "\n\n...\n\n")
 	for _, c := range s.Chapters {
 		content = append(content, fmt.Sprintf("%s %d.\n%s\n...\n", chapter, c.Number, strings.TrimRight(removeChars(c.Title), ".")+"."))
 		content = append(content, removeChars(trimChapterTitleFromText(c)))

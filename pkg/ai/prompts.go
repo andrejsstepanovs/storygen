@@ -10,6 +10,75 @@ import (
 	"github.com/teilomillet/gollm"
 )
 
+func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
+	problems := story.Problems{
+		{
+			Chapter:     1,
+			ChapterName: "The Beginning",
+			Issues: []string{
+				"Doctor could not know about the name of a cat because no one told him yet",
+				"Girls leg was broken, she could not hop her way trough the forest, its close to impossible feat",
+			},
+		},
+		{
+			Chapter:     3,
+			ChapterName: "Home sweet home",
+			Issues: []string{
+				"Story ending do not make sense, they didnt came back home so it is not end of the journey",
+				"On first chapter book had brown color and now its black",
+				"This chapter is just too boring to read. Need more action and twists.",
+			},
+		},
+	}
+
+	templatePrompt := gollm.NewPromptTemplate(
+		"StoryIssueSpotter",
+		"Pre read the story and figure out the logical issues.",
+		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
+			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
+			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter. "+
+			"If no flaws are found, do not include the chapter in your output.",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
+			gollm.WithOutput("JSON of story issues (problems) (as array) in JSON format. Use only protagonists from the list that was provided."),
+			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'issues_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
+			gollm.WithExamples(problems.ToJson()),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"StoryText": storyText,
+		"Audience":  a.audience,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	var picked []story.Problem
+	err = json.Unmarshal([]byte(templateResponse), &picked)
+	if err != nil {
+		log.Println("Failed to parse JSON. Trying again")
+		responseJson := gollm.CleanResponse(templateResponse)
+		responseJson = fmt.Sprintf("[%s]", responseJson)
+		err = json.Unmarshal([]byte(responseJson), &picked)
+		if err != nil {
+			log.Println(templateResponse)
+			log.Println("cleaned:", responseJson)
+			log.Fatalf("Failed to parse problems as JSON: %v", err)
+		}
+	}
+
+	var p story.Problems
+	p = picked
+	return p
+}
+
 func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	examples := func(count int) string {
 		moraleExamples := story.GetRandomTimePeriods(count)
