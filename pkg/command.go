@@ -323,6 +323,15 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 		for _, issue := range problem.Issues {
 			log.Printf("- %s\n", issue)
 		}
+
+		log.Printf("Fixing chapter %d...", problem.Chapter)
+		for i, c := range s.Chapters {
+			if c.Number == problem.Chapter {
+				log.Printf("Adjusting chapter %s...", problem.ChapterName)
+				fixedChapter := llm.AdjustStoryChapter(s, problem)
+				s.Chapters[i].Text = fixedChapter
+			}
+		}
 	}
 
 	return s

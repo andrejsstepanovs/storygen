@@ -10,6 +10,44 @@ import (
 	"github.com/teilomillet/gollm"
 )
 
+func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem) string {
+	templatePrompt := gollm.NewPromptTemplate(
+		"StoryChapterFixer",
+		"There are issues in this story chapter. Re-write the chapter and fix all mentioned problems",
+		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
+			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
+			"For refference, here is full Story ```json\n{{.StoryChapters}}\n```. Use it to understand bigger picture. But remember that we are working only with chapter {{.ChapterNumber}} {{.ChapterName}} here.\n"+
+			"Answer with only one chapter text. We are fixing it one chapter at the time. "+
+			"Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
+			"It is OK to extend the story if that is necessary to fix the plot. "+
+			"Try to keep the chapter length as is. We need to fix it within same word count (if possible).",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
+			gollm.WithOutput("Story chapter text. Answer with story chapter text only. We need nothing else than just this one chapter with fixed content. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with this one fixed chapter text."),
+			gollm.WithExamples(problem.ToJson()),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"Issues":        problem.ToJson(),
+		"StoryChapters": storyEl.ToJson(),
+		"ChapterNumber": problem.Chapter,
+		"ChapterName":   problem.ChapterName,
+		"Audience":      a.audience,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt)
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	return templateResponse
+}
+
 func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
 	problems := story.Problems{
 		{
