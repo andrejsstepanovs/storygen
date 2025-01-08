@@ -33,3 +33,11 @@ func (p *Suggestions) ToJson() string {
 func (p *Suggestion) ToJson() string {
 	return utils.ToJsonStr(p)
 }
+
+func (p *Suggestions) Count() int {
+	count := 0
+	for _, suggestion := range *p {
+		count += len(suggestion.Suggestions)
+	}
+	return count
+}

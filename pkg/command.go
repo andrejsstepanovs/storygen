@@ -66,6 +66,8 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			if preReadLoops == 0 {
 				preReadLoops = 3
 			}
+
+			allAddressedSuggestions := make(story.Suggestions, 0)
 			for i := 1; i <= preReadLoops; i++ {
 				log.Printf("Pre-reading / story fixing loop %d...\n", i)
 				text := s.BuildContent(story.TextChapter, story.TextTheEnd)
@@ -85,7 +87,7 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 					for _, c := range s.Chapters {
 						if c.Number == problem.Chapter {
 							log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
-							suggestions := llm.SuggestStoryFixes(s, problem)
+							suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
 							log.Printf("Suggestions: %d", len(suggestions))
 							for _, sug := range suggestions {
 								allSuggestions = append(allSuggestions, sug)
@@ -93,19 +95,20 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 						}
 					}
 				}
+				allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 
 				log.Printf("Found problems: %d\n", len(problems))
 				chapterSuggestions := make(map[int]story.Suggestions)
 				for _, sug := range allSuggestions {
 					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
 				}
-				totalSuggestions := 0
+				totalSuggestions := make([]string, 0)
 				for chapter, suggestions := range chapterSuggestions {
 					w := make([]string, 0)
 					for _, sug := range suggestions {
 						for _, k := range sug.Suggestions {
 							w = append(w, k)
-							totalSuggestions++
+							totalSuggestions = append(totalSuggestions, k)
 						}
 					}
 					log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
@@ -113,19 +116,23 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 						log.Printf(" - %s", txt)
 					}
 				}
-				log.Printf("# Total Suggestions Points: %d", totalSuggestions)
+				log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
 
-				sort.Slice(allSuggestions, func(i, j int) bool {
-					return allSuggestions[i].Chapter < allSuggestions[j].Chapter
-				})
+				// sort chapterSuggestions by key
+				keys := make([]int, 0, len(chapterSuggestions))
+				for k := range chapterSuggestions {
+					keys = append(keys, k)
+				}
+				sort.Ints(keys)
 
 				log.Println("Fixing...")
-				for chapter, suggestions := range chapterSuggestions {
+				for _, chapter := range keys {
+					suggestions := chapterSuggestions[chapter]
 					for _, problem := range problems {
 						if problem.Chapter == chapter {
 							for j, c := range s.Chapters {
 								if c.Number == problem.Chapter {
-									log.Printf("Adjusting chapter %d. %q with %d suggestions...", problem.Chapter, problem.ChapterName, len(suggestions))
+									log.Printf("Adjusting chapter %d. %q with %d suggestions (%q)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
 									wordCount := chapterWords[problem.Chapter]
 									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, wordCount)
 									s.Chapters[j].Text = fixedChapter
@@ -141,6 +148,7 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			log.Println("Done")
 			file, err := utils.SaveTextToFile("groomed_"+s.Title, "json", s.ToJson())
 			log.Println(file)
+
 			return err
 		},
 	}

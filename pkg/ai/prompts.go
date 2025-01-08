@@ -30,10 +30,10 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"Try mixing it up with shorter, punchier sentences or different ways of describing actions and settings! " +
 	"It’ll help keep the pacing fresh and engaging!"
 
-func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story.Suggestions {
+func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions) story.Suggestions {
 	problemInjsonTxt := ""
 	for i := 0; i < 3; i++ {
-		suggestions, query, err := a.trySuggestStoryFixes(storyEl, problem, problemInjsonTxt)
+		suggestions, query, err := a.trySuggestStoryFixes(storyEl, problem, addressedSuggestions, problemInjsonTxt)
 		if err == nil {
 			return suggestions
 		}
@@ -45,7 +45,7 @@ func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story
 	return story.Suggestions{}
 }
 
-func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, problemInjsonTxt string) (story.Suggestions, string, error) {
+func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions, problemInjsonTxt string) (story.Suggestions, string, error) {
 	if problem.Chapter < len(storyEl.Chapters) {
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
@@ -75,7 +75,8 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, pr
 		"Analyze the {{.Audience}} story chapter {{.ChapterNumber}} {{.ChapterName}} issues:\n"+
 			"<issues>\n{{.Issues}}\n</issues>\n\n"+
 			"Analyze full {{.Audience}} story and adjust pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
-			"For reference, here is full Story until chapter ```json\n{{.StoryChapters}}\n```. "+
+			"For reference, here is full Story until chapter \n```json\n{{.StoryChapters}}\n```\n. "+
+			"Already addressed suggestions that you should ignore \n```json\n{{.AddressedSuggestions}}\n```\n. "+
 			"There are maybe more chapters but lets focus on story until this moment. "+
 			"Think about what needs to be changed in what chapter before re-writing."+
 			"# Instructions:"+
@@ -98,11 +99,12 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, pr
 	)
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Issues":        problem.ToJson(),
-		"StoryChapters": storyEl.ToJson(),
-		"ChapterNumber": problem.Chapter,
-		"ChapterName":   problem.ChapterName,
-		"Audience":      a.audience,
+		"Issues":               problem.ToJson(),
+		"StoryChapters":        storyEl.ToJson(),
+		"AddressedSuggestions": addressedSuggestions.ToJson(),
+		"ChapterNumber":        problem.Chapter,
+		"ChapterName":          problem.ChapterName,
+		"Audience":             a.audience,
 	})
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)
