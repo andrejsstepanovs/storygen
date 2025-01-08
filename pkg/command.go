@@ -95,19 +95,25 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 				}
 
 				log.Printf("Found problems: %d\n", len(problems))
-				log.Printf("Total Suggestions: %d", len(allSuggestions))
 				chapterSuggestions := make(map[int]story.Suggestions)
 				for _, sug := range allSuggestions {
 					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
 				}
+				totalSuggestions := 0
 				for chapter, suggestions := range chapterSuggestions {
-					log.Printf("Chapter %d has %d suggestions", chapter, len(suggestions))
+					w := make([]string, 0)
 					for _, sug := range suggestions {
 						for _, k := range sug.Suggestions {
-							log.Printf("- %s\n", k)
+							w = append(w, k)
+							totalSuggestions++
 						}
 					}
+					log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
+					for _, txt := range w {
+						log.Printf(" - %s", txt)
+					}
 				}
+				log.Printf("# Total Suggestions Points: %d", totalSuggestions)
 
 				sort.Slice(allSuggestions, func(i, j int) bool {
 					return allSuggestions[i].Chapter < allSuggestions[j].Chapter
