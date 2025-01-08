@@ -58,6 +58,9 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			x := &story.Story{}
 			json.Unmarshal(utils.LoadTextFromFile(file), x)
 
+			chapterCount, maxChapterWords, _ := getChapterCountAndLength()
+			chapterWords := chapterWordCount(chapterCount, maxChapterWords)
+
 			s := *x
 			preReadLoops := viper.GetInt("STORYGEN_PREREAD_LOOPS")
 			if preReadLoops == 0 {
@@ -100,7 +103,9 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 				for chapter, suggestions := range chapterSuggestions {
 					log.Printf("Chapter %d has %d suggestions", chapter, len(suggestions))
 					for _, sug := range suggestions {
-						log.Printf("- %s\n", sug.Suggestions)
+						for _, k := range sug.Suggestions {
+							log.Printf("- %s\n", k)
+						}
 					}
 				}
 
@@ -115,7 +120,8 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 							for j, c := range s.Chapters {
 								if c.Number == problem.Chapter {
 									log.Printf("Adjusting chapter %d. %q with %d suggestions...", problem.Chapter, problem.ChapterName, len(suggestions))
-									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions)
+									wordCount := chapterWords[problem.Chapter]
+									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, wordCount)
 									s.Chapters[j].Text = fixedChapter
 									break
 								}
@@ -297,31 +303,8 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	s.StorySuggestion = strings.Trim(suggestion, " ")
 	s.Structure = story.GetRandomStoryStructure()
 
-	readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
-	if readSpeedWordsInMinute == 0 {
-		log.Fatalln("Please set the STORYGEN_READSPEED environment variable")
-	}
-
-	lengthInMin := viper.GetInt64("STORYGEN_LENGTH_IN_MIN")
-	if lengthInMin == 0 {
-		lengthInMin = 8
-	}
-	minutes := time.Minute * time.Duration(lengthInMin)
-	log.Printf("Approximate length: %d min\n", int(minutes.Minutes()))
-
-	chapterCount := viper.GetInt("STORYGEN_CHAPTERS")
-	if chapterCount == 0 {
-		chapterCount = int(minutes.Minutes() / 1.6)
-	}
-	if chapterCount < 3 {
-		chapterCount = 3
-	}
-	log.Printf("Chapter count: %d\n", chapterCount)
-
-	maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / chapterCount
-
-	format := "Full story reading time: %d minutes. Chapter count: %d. Longest chapter: %d words."
-	s.Length = fmt.Sprintf(format, int(minutes.Minutes()), chapterCount, maxChapterWords)
+	chapterCount, maxChapterWords, lengthTxt := getChapterCountAndLength()
+	s.Length = lengthTxt
 	log.Printf("Length: %s", s.Length)
 	log.Printf("Structure: %s", s.Structure.ToJson())
 
@@ -379,20 +362,10 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 		})
 	}
 
+	chapterWords := chapterWordCount(chapterCount, maxChapterWords)
 	for i, title := range chapterTitles {
 		number := i + 1
-		wordCount := maxChapterWords
-
-		// first chapter 80% shorter
-		if number == 1 {
-			wordCount = int(float64(maxChapterWords) * 0.8)
-		}
-
-		// last chapter 60% shorter
-		if number == len(chapterTitles) {
-			wordCount = int(float64(maxChapterWords) * 0.6)
-		}
-
+		wordCount := chapterWords[number]
 		log.Printf("Chapter %d - %s (words %d) ...\n", number, title, wordCount)
 		chapterText := llm.FigureStoryChapter(s, number, title, wordCount)
 		s.Chapters[i].Text = chapterText
@@ -403,4 +376,53 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	log.Printf("Picked title: %s\n", s.Title)
 
 	return s
+}
+
+func chapterWordCount(chapterCount, maxChapterWords int) map[int]int {
+	chapterWords := make(map[int]int)
+	for i := 0; i < chapterCount; i++ {
+		number := i + 1
+		wordCount := maxChapterWords
+
+		// first chapter 80% shorter
+		if number == 1 {
+			wordCount = int(float64(maxChapterWords) * 0.8)
+		}
+
+		// last chapter 60% shorter
+		if number == chapterCount {
+			wordCount = int(float64(maxChapterWords) * 0.6)
+		}
+		chapterWords[number] = wordCount
+	}
+	return chapterWords
+}
+
+func getChapterCountAndLength() (int, int, string) {
+	readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
+	if readSpeedWordsInMinute == 0 {
+		log.Fatalln("Please set the STORYGEN_READSPEED environment variable")
+	}
+
+	lengthInMin := viper.GetInt64("STORYGEN_LENGTH_IN_MIN")
+	if lengthInMin == 0 {
+		lengthInMin = 8
+	}
+	minutes := time.Minute * time.Duration(lengthInMin)
+	log.Printf("Approximate length: %d min\n", int(minutes.Minutes()))
+
+	chapterCount := viper.GetInt("STORYGEN_CHAPTERS")
+	if chapterCount == 0 {
+		chapterCount = int(minutes.Minutes() / 1.6)
+	}
+	if chapterCount < 3 {
+		chapterCount = 3
+	}
+	log.Printf("Chapter count: %d\n", chapterCount)
+
+	maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / chapterCount
+	format := "Full story reading time: %d minutes. Chapter count: %d. Longest chapter: %d words."
+	lengthText := fmt.Sprintf(format, int(minutes.Minutes()), chapterCount, maxChapterWords)
+
+	return chapterCount, maxChapterWords, lengthText
 }

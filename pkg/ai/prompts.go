@@ -10,6 +10,26 @@ import (
 	"github.com/teilomillet/gollm"
 )
 
+const ChapterPromptInstructions = "# Content writing instructions:\n" +
+	"- Analyze previous chapters (if exists) before writing the next one.\n" +
+	"- If story is for children then use shorter sentences, simple language and avoid complex words.\n" +
+	"- If story is for children then write with respect for young readers. Include proper story development, meaningful plot progression, and clever twists.\n" +
+	"- Avoid talking down or using overly childish language.\n" +
+	"- Dont be cringe, skip overly childish and safe content.\n" +
+	"- Avoid sugar-coating and predictable storylines.\n" +
+	"- Proceed the storyline in a way that fits the chapter's place in the story.\n" +
+	"- Use all provided story details (characters, setting, plot, morals, etc.) to create a rich, imaginative, and engaging chapter.\n" +
+	"- Ensure the chapter aligns with the story's structure, timeline, themes, protagonist, villain, and overall plan.\n" +
+	"- Take into consideration Story Suggestion.\n" +
+	"- Write it using funny interactions between characters.\n" +
+	"- Move plot forward without diving into surrounding details. " +
+	"Tell what happened and what happened next moving plot forward.\n\n" +
+	"# Writing style Adjustments:\n" +
+	"You often use descriptive phrases or clauses to extend sentences. " +
+	"While they add great imagery, they can feel repetitive if overused. " +
+	"Try mixing it up with shorter, punchier sentences or different ways of describing actions and settings! " +
+	"It’ll help keep the pacing fresh and engaging!"
+
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story.Suggestions {
 	problemInjsonTxt := ""
 	for i := 0; i < 3; i++ {
@@ -57,12 +77,19 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, pr
 			"Analyze full {{.Audience}} story and adjust pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
 			"For reference, here is full Story until chapter ```json\n{{.StoryChapters}}\n```. "+
 			"There are maybe more chapters but lets focus on story until this moment. "+
-			"Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions). "+
-			"Think about what needs to be changed in what chapter before re-writing. "+
-			"You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
-			"Be creative with suggestions to fix issues at hand. Be swift and decisive. "+
-			"It is OK to extend the story if that is necessary to fix the plot.\n"+
-			"Return empty JSON array (`[]`) if there is nothing important to fix."+problemInjsonTxt,
+			"Think about what needs to be changed in what chapter before re-writing."+
+			"# Instructions:"+
+			"- Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions).\n"+
+			"- Don't challenge (and keep) the {{.Audience}} story writing style.\n"+
+			"- Story writing style was already predefined and we are sticking with it.\n"+
+			"- You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
+			"- Dont be overly pedantic. It's just a {{.Audience}} story after all.\n"+
+			"- Be creative with suggestions to fix issues at hand.\n"+
+			"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
+			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
+			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n"+
+			"# Answer:"+
+			"- Return empty JSON array (`[]`) if there is nothing important to fix. "+problemInjsonTxt,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
 			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid. "+problemInjsonTxt),
@@ -106,7 +133,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, pr
 	return p, "", nil
 }
 
-func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions) string {
+func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions, wordCount int) string {
 	if problem.Chapter < len(storyEl.Chapters) {
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
@@ -120,14 +147,15 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 			"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n{{.Suggestions}}\n</fix_suggestions>\n"+
 			"Use and rely only on these suggestions provided!\n"+
 			"For reference, here is full story until this chapter ```json\n{{.StoryChapters}}\n```. "+
-			"There are maybe more chapters but lets focus on story until this moment. "+
-			"Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
-			"Use suggestions from fix_suggestions tag to re-write the story chapter {{.ChapterNumber}} {{.ChapterName}} as suggested. "+
-			"Answer with only one chapter text. We are fixing it one chapter at the time. "+
-			"Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
-			"It is OK to extend the story if that is necessary to fix the plot. "+
-			"If possible, try to fix this chapter while keeping similar word count. "+
-			"Small to medium text extensions are totally OK too.",
+			"# Orders:"+
+			"- There are maybe more chapters but lets focus on story until this moment.\n"+
+			"- Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
+			"- Use suggestions from fix_suggestions tag to re-write the story chapter {{.ChapterNumber}} {{.ChapterName}} as suggested. "+
+			"- Answer with only one chapter text. We are fixing it one chapter at the time. "+
+			"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
+			//"- It is OK to extend the story if that is necessary to fix the plot. "+
+			"- Small text extensions are OK, but we should try to keep this chapter withing a limit of {{.Words}} words."+
+			ChapterPromptInstructions,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
 			gollm.WithOutput("Story chapter text. Answer with story chapter text only. We need nothing else than just this one chapter with fixed content. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with this one fixed chapter text."),
@@ -141,6 +169,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 		"ChapterNumber": problem.Chapter,
 		"ChapterName":   problem.ChapterName,
 		"Audience":      a.audience,
+		"Words":         wordCount,
 	})
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)
@@ -599,25 +628,8 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 		"Write the single full chapter text, ensuring it flows naturally and keeps the reader engaged. "+
 			"**This is the {{.Audience}} story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
 			"You need to write a chapter: \"{{.Number}}) - {{.Title}}\" content (text) to proceed the storyline. "+
-			"# Instructions:\n"+
-			"- Chapter should be written (should fit within) with approximately {{.Words}} words.\n"+
-			"- Analyze previous chapters (if exists) before writing the next one.\n"+
-			"- If story is for children then use shorter sentences, simple language and avoid complex words.\n"+
-			"- If story is for children then write with respect for young readers. Include proper story development, meaningful plot progression, and clever twists.\n"+
-			"- Avoid talking down or using overly childish language.\n"+
-			"- Dont be cringe, skip overly childish and safe content.\n"+
-			"- Avoid sugar-coating and predictable storylines.\n"+
-			"- Proceed the storyline in a way that fits the chapter's place in the story.\n"+
-			"- Use all provided story details (characters, setting, plot, morals, etc.) to create a rich, imaginative, and engaging chapter.\n"+
-			"- Ensure the chapter aligns with the story's structure, timeline, themes, protagonist, villain, and overall plan.\n"+
-			"- Take into consideration Story Suggestion.\n"+
-			"- Write it using funny interactions between characters.\n"+
-			"- Move plot forward without diving into surrounding details. Tell what happened and what happened next moving plot forward.\n\n"+
-			"# Writing style Adjustments:\n"+
-			"You often use descriptive phrases or clauses to extend sentences. "+
-			"While they add great imagery, they can feel repetitive if overused. "+
-			"Try mixing it up with shorter, punchier sentences or different ways of describing actions and settings! "+
-			"It’ll help keep the pacing fresh and engaging!",
+			"Chapter should be written (should fit within) with approximately {{.Words}} words.\n"+
+			ChapterPromptInstructions,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are writing a story book chapter by chapter. Expand the story with one chapter."),
 			gollm.WithDirectives("You are creative and decisive story writer."),
