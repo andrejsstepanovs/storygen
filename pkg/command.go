@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,8 +59,6 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			json.Unmarshal(utils.LoadTextFromFile(file), x)
 
 			s := *x
-			log.Println("Pre reading...")
-
 			preReadLoops := viper.GetInt("STORYGEN_PREREAD_LOOPS")
 			if preReadLoops == 0 {
 				preReadLoops = 3
@@ -67,12 +66,15 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			for i := 1; i <= preReadLoops; i++ {
 				log.Printf("Pre-reading / story fixing loop %d...\n", i)
 				text := s.BuildContent(story.TextChapter, story.TextTheEnd)
+
+				utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
+
 				problems := llm.FigureStoryLogicalProblems(text)
 				if len(problems) == 0 {
 					log.Println("Story is OK")
 					break
 				}
-				log.Printf("Found problems: %d\n", len(problems))
+				log.Printf("Found problems in chapters: %d\n", len(problems))
 
 				allSuggestions := make(story.Suggestions, 0)
 				for _, problem := range problems {
@@ -90,7 +92,7 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 				}
 
 				log.Printf("Found problems: %d\n", len(problems))
-				log.Printf("Total Suggestions %d...", len(allSuggestions))
+				log.Printf("Total Suggestions: %d", len(allSuggestions))
 				chapterSuggestions := make(map[int]story.Suggestions)
 				for _, sug := range allSuggestions {
 					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)

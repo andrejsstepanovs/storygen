@@ -11,6 +11,21 @@ import (
 )
 
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story.Suggestions {
+	problemInjsonTxt := ""
+	for i := 0; i < 3; i++ {
+		suggestions, query, err := a.trySuggestStoryFixes(storyEl, problem, problemInjsonTxt)
+		if err == nil {
+			return suggestions
+		}
+		log.Println("Failed to suggest story fixes for problem chapter. Trying again.")
+		problemInjsonTxt = fmt.Sprintf("Your last answer contained invalid JSON: ----\n\n%s\n\n----. Try again and this time make sure your JSON is valid!", query)
+	}
+
+	log.Fatalf("Failed to suggest story fixes for problem chapter: %v", problem.Chapter)
+	return story.Suggestions{}
+}
+
+func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, problemInjsonTxt string) (story.Suggestions, string, error) {
 	if problem.Chapter < len(storyEl.Chapters) {
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
@@ -47,10 +62,10 @@ func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story
 			"You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
 			"Be creative with suggestions to fix issues at hand. Be swift and decisive. "+
 			"It is OK to extend the story if that is necessary to fix the plot.\n"+
-			"Return empty JSON array (`[]`) if there is nothing important to fix.",
+			"Return empty JSON array (`[]`) if there is nothing important to fix."+problemInjsonTxt,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
-			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid."),
+			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid. "+problemInjsonTxt),
 			gollm.WithExamples(suggestions.ToJson()),
 		),
 	)
@@ -82,13 +97,13 @@ func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story
 		if err != nil {
 			log.Println(templateResponse)
 			log.Println("cleaned:", responseJson)
-			log.Fatalf("Failed to parse problems as JSON: %v", err)
+			return story.Suggestions{}, templateResponse, err
 		}
 	}
 
 	var p story.Suggestions
 	p = picked
-	return p
+	return p, "", nil
 }
 
 func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions) string {
