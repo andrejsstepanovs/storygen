@@ -28,7 +28,8 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
 	"While they add great imagery, they can feel repetitive if overused. " +
 	"Try mixing it up with shorter, punchier sentences or different ways of describing actions and settings! " +
-	"It’ll help keep the pacing fresh and engaging!"
+	"It’ll help keep the pacing fresh and engaging!" +
+	"Another thing - laughing and dancing is nice but too much is cringe."
 
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions) story.Suggestions {
 	problemInjsonTxt := ""
