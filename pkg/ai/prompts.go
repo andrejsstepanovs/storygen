@@ -135,7 +135,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 	return p, "", nil
 }
 
-func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions, wordCount int) string {
+func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions, addressedSuggestions story.Suggestions, wordCount int) string {
 	if problem.Chapter < len(storyEl.Chapters) {
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
@@ -146,6 +146,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. "+
 			"Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
 			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
+			"Here are all already addressed suggestions: \n<already_addressed_suggestions>\n{{.AddressedSuggestions}}\n</already_addressed_suggestions>\n"+
 			"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n{{.Suggestions}}\n</fix_suggestions>\n"+
 			"Use and rely only on these suggestions provided!\n"+
 			"For reference, here is full story until this chapter ```json\n{{.StoryChapters}}\n```. "+
@@ -153,6 +154,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 			"- There are maybe more chapters but lets focus on story until this moment.\n"+
 			"- Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
 			"- Use suggestions from fix_suggestions tag to re-write the story chapter {{.ChapterNumber}} {{.ChapterName}} as suggested. "+
+			"- Make sure you don't break out of suggestions that were fixed before (see json in: already_addressed_suggestions tags). "+
 			"- Answer with only one chapter text. We are fixing it one chapter at the time. "+
 			"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
 			//"- It is OK to extend the story if that is necessary to fix the plot. "+
@@ -165,13 +167,14 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 	)
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Issues":        problem.ToJson(),
-		"StoryChapters": storyEl.ToJson(),
-		"Suggestions":   suggestions.ToJson(),
-		"ChapterNumber": problem.Chapter,
-		"ChapterName":   problem.ChapterName,
-		"Audience":      a.audience,
-		"Words":         wordCount,
+		"Issues":               problem.ToJson(),
+		"StoryChapters":        storyEl.ToJson(),
+		"Suggestions":          suggestions.ToJson(),
+		"AddressedSuggestions": addressedSuggestions.ToJson(),
+		"ChapterNumber":        problem.Chapter,
+		"ChapterName":          problem.ChapterName,
+		"Audience":             a.audience,
+		"Words":                wordCount,
 	})
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)
@@ -186,7 +189,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 	return templateResponse
 }
 
-func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
+func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) story.Problems {
 	problems := story.Problems{
 		{
 			Chapter:     1,
@@ -214,7 +217,7 @@ func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
 			"<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
 			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
 			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter."+
-			//"Prioritize logical plot flaws and keep entertainment issues secondary. "+
+			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n"+
 			"If no flaws are found, do not include the chapter in your output.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
@@ -227,6 +230,8 @@ func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
 		"StoryText": storyText,
 		"Audience":  a.audience,
+		"Loop":      loop,
+		"MaxLoops":  maxLoops,
 	})
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)

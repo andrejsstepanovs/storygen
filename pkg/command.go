@@ -74,7 +74,7 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 
 				utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
 
-				problems := llm.FigureStoryLogicalProblems(text)
+				problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
 				if len(problems) == 0 {
 					log.Println("Story is OK")
 					break
@@ -95,7 +95,6 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 						}
 					}
 				}
-				allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 
 				log.Printf("Found problems: %d\n", len(problems))
 				chapterSuggestions := make(map[int]story.Suggestions)
@@ -132,9 +131,9 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 						if problem.Chapter == chapter {
 							for j, c := range s.Chapters {
 								if c.Number == problem.Chapter {
-									log.Printf("Adjusting chapter %d. %q with %d suggestions (%q)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
+									log.Printf("Adjusting chapter %d. %q with %d suggestions (%d)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
 									wordCount := chapterWords[problem.Chapter]
-									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, wordCount)
+									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
 									s.Chapters[j].Text = fixedChapter
 									break
 								}
@@ -143,6 +142,8 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 						}
 					}
 				}
+
+				allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 			}
 
 			log.Println("Done")
