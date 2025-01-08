@@ -42,10 +42,10 @@ func GetAvailableStoryStructures() []Structure {
 			Name:        "Frame Story",
 			Description: "A story within a story, where a main narrative serves as a framework for one or more secondary tales.",
 		},
-		{
-			Name:        "Repetitive Structure",
-			Description: "A pattern of repetition is used to reinforce themes, build anticipation, or create a rhythmic flow (e.g., 'Brown Bear, Brown Bear, What Do You See?').",
-		},
+		//{
+		//	Name:        "Repetitive Structure",
+		//	Description: "A pattern of repetition is used to reinforce themes, build anticipation, or create a rhythmic flow (e.g., 'Brown Bear, Brown Bear, What Do You See?').",
+		//},
 		{
 			Name:        "Rags to Riches",
 			Description: "The protagonist starts in a lowly or unfortunate state and, through perseverance or luck, achieves success or happiness.",

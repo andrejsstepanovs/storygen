@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -39,15 +40,102 @@ func NewCommand() (*cobra.Command, error) {
 		newTranslateCommand(llm),
 		newReadCommand(llm),
 		newWriteCommand(llm),
+		newGroomCommand(llm),
 	)
 
 	return cmd, nil
 }
 
+func newGroomCommand(llm *ai.AI) *cobra.Command {
+	return &cobra.Command{
+		Use:   "groom",
+		Short: "Groom the Story from JSON (first arg) and fix found issues",
+		RunE: func(_ *cobra.Command, args []string) error {
+			file := args[0]
+			log.Printf("Loading story from file: %s", file)
+
+			x := &story.Story{}
+			json.Unmarshal(utils.LoadTextFromFile(file), x)
+
+			s := *x
+			log.Println("Pre reading...")
+
+			preReadLoops := viper.GetInt("STORYGEN_PREREAD_LOOPS")
+			if preReadLoops == 0 {
+				preReadLoops = 3
+			}
+			for i := 1; i <= preReadLoops; i++ {
+				log.Printf("Pre-reading / story fixing loop %d...\n", i)
+				text := s.BuildContent(story.TextChapter, story.TextTheEnd)
+				problems := llm.FigureStoryLogicalProblems(text)
+				if len(problems) == 0 {
+					log.Println("Story is OK")
+					break
+				}
+				log.Printf("Found problems: %d\n", len(problems))
+
+				allSuggestions := make(story.Suggestions, 0)
+				for _, problem := range problems {
+					log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)
+					for _, c := range s.Chapters {
+						if c.Number == problem.Chapter {
+							log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
+							suggestions := llm.SuggestStoryFixes(s, problem)
+							log.Printf("Suggestions: %d", len(suggestions))
+							for _, sug := range suggestions {
+								allSuggestions = append(allSuggestions, sug)
+							}
+						}
+					}
+				}
+
+				log.Printf("Found problems: %d\n", len(problems))
+				log.Printf("Total Suggestions %d...", len(allSuggestions))
+				chapterSuggestions := make(map[int]story.Suggestions)
+				for _, sug := range allSuggestions {
+					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
+				}
+				for chapter, suggestions := range chapterSuggestions {
+					log.Printf("Chapter %d has %d suggestions", chapter, len(suggestions))
+					for _, sug := range suggestions {
+						log.Printf("- %s\n", sug.Suggestions)
+					}
+				}
+
+				sort.Slice(allSuggestions, func(i, j int) bool {
+					return allSuggestions[i].Chapter < allSuggestions[j].Chapter
+				})
+
+				log.Println("Fixing...")
+				for chapter, suggestions := range chapterSuggestions {
+					for _, problem := range problems {
+						if problem.Chapter == chapter {
+							for j, c := range s.Chapters {
+								if c.Number == problem.Chapter {
+									log.Printf("Adjusting chapter %d. %q with %d suggestions...", problem.Chapter, problem.ChapterName, len(suggestions))
+									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions)
+									s.Chapters[j].Text = fixedChapter
+									break
+								}
+							}
+							break
+						}
+					}
+				}
+			}
+
+			log.Println("Done")
+			file, err := utils.SaveTextToFile("groomed_"+s.Title, "json", s.ToJson())
+			log.Println(file)
+			return err
+		},
+	}
+}
+
 func newTranslateCommand(llm *ai.AI) *cobra.Command {
 	return &cobra.Command{
-		Use:   "translate",
-		Short: "Load a Story from JSON (first arg) and translate to language (second param)",
+		Use:   "voice",
+		Short: "Load a Story from JSON file",
 		RunE: func(_ *cobra.Command, args []string) error {
 			file := args[0]
 			log.Printf("Loading story from file: %s", file)
@@ -58,9 +146,8 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			translated := *s
 			chapter := story.TextChapter
 			theEnd := story.TextTheEnd
-			toLang := "english"
-			if len(args) == 2 {
-				toLang = args[1]
+			toLang := viper.GetString("STORYGEN_LANGUAGE")
+			if toLang != "english" {
 				log.Printf("Translating to: %s", toLang)
 				translated, chapter, theEnd = translate(llm, *s, toLang)
 			}
@@ -312,27 +399,6 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	log.Println("Story Title...")
 	s.Title = llm.FigureStoryTitle(s)
 	log.Printf("Picked title: %s\n", s.Title)
-
-	log.Println("Pre reading...")
-	text := s.BuildContent(story.TextChapter, story.TextTheEnd)
-	problems := llm.FigureStoryLogicalProblems(text)
-	log.Printf("Found problems: %d\n", len(problems))
-
-	for _, problem := range problems {
-		log.Printf("Problem in Chapter: %d. %s (%d) \n", problem.Chapter, problem.ChapterName, len(problem.Issues))
-		for _, issue := range problem.Issues {
-			log.Printf("- %s\n", issue)
-		}
-
-		log.Printf("Fixing chapter %d...", problem.Chapter)
-		for i, c := range s.Chapters {
-			if c.Number == problem.Chapter {
-				log.Printf("Adjusting chapter %s...", problem.ChapterName)
-				fixedChapter := llm.AdjustStoryChapter(s, problem)
-				s.Chapters[i].Text = fixedChapter
-			}
-		}
-	}
 
 	return s
 }

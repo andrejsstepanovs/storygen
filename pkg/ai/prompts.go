@@ -10,27 +10,119 @@ import (
 	"github.com/teilomillet/gollm"
 )
 
-func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem) string {
+func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem) story.Suggestions {
+	if problem.Chapter < len(storyEl.Chapters) {
+		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
+	}
+
+	suggestions := story.Suggestions{
+		{
+			Chapter:     1,
+			ChapterName: "The Beginning",
+			Suggestions: []string{
+				"Introduce a dolphin that was following the boat in chapter 3",
+				"Make protagonist angry at the doctor for not knowing the cat name, because this will be useful in ending chapter.",
+			},
+		},
+		{
+			Chapter:     problem.Chapter,
+			ChapterName: problem.ChapterName,
+			Suggestions: []string{
+				"Add a scene where the doctor is told about the cat name",
+				"Show where the doctor is told about the cat name",
+			},
+		},
+	}
+
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryChapterFixer",
-		"There are issues in this story chapter. Re-write the chapter and fix all mentioned problems",
-		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
-			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
-			"For refference, here is full Story ```json\n{{.StoryChapters}}\n```. Use it to understand bigger picture. But remember that we are working only with chapter {{.ChapterNumber}} {{.ChapterName}} here.\n"+
-			"Answer with only one chapter text. We are fixing it one chapter at the time. "+
-			"Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
-			"It is OK to extend the story if that is necessary to fix the plot. "+
-			"Try to keep the chapter length as is. We need to fix it within same word count (if possible).",
+		"Our story auditor (pre-reader) found issues in story chapter. Pick what story chapters (chapter number) need to be re-written and suggest how to do it.",
+		"Analyze the {{.Audience}} story chapter {{.ChapterNumber}} {{.ChapterName}} issues:\n"+
+			"<issues>\n{{.Issues}}\n</issues>\n\n"+
+			"Analyze full {{.Audience}} story and adjust pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
+			"For reference, here is full Story until chapter ```json\n{{.StoryChapters}}\n```. "+
+			"There are maybe more chapters but lets focus on story until this moment. "+
+			"Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions). "+
+			"Think about what needs to be changed in what chapter before re-writing. "+
+			"You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
+			"Be creative with suggestions to fix issues at hand. Be swift and decisive. "+
+			"It is OK to extend the story if that is necessary to fix the plot.\n"+
+			"Return empty JSON array (`[]`) if there is nothing important to fix.",
 		gollm.WithPromptOptions(
-			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
-			gollm.WithOutput("Story chapter text. Answer with story chapter text only. We need nothing else than just this one chapter with fixed content. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with this one fixed chapter text."),
-			gollm.WithExamples(problem.ToJson()),
+			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
+			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid."),
+			gollm.WithExamples(suggestions.ToJson()),
 		),
 	)
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
 		"Issues":        problem.ToJson(),
 		"StoryChapters": storyEl.ToJson(),
+		"ChapterNumber": problem.Chapter,
+		"ChapterName":   problem.ChapterName,
+		"Audience":      a.audience,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	var picked []story.Suggestion
+	err = json.Unmarshal([]byte(templateResponse), &picked)
+	if err != nil {
+		log.Println("Failed to parse JSON. Trying again")
+		responseJson := gollm.CleanResponse(templateResponse)
+		responseJson = fmt.Sprintf("[%s]", responseJson)
+		err = json.Unmarshal([]byte(responseJson), &picked)
+		if err != nil {
+			log.Println(templateResponse)
+			log.Println("cleaned:", responseJson)
+			log.Fatalf("Failed to parse problems as JSON: %v", err)
+		}
+	}
+
+	var p story.Suggestions
+	p = picked
+	return p
+}
+
+func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions) string {
+	if problem.Chapter < len(storyEl.Chapters) {
+		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
+	}
+
+	templatePrompt := gollm.NewPromptTemplate(
+		"StoryChapterFixer",
+		"There are issues in this story chapter. Re-write the chapter and fix all mentioned problems",
+		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. "+
+			"Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
+			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
+			"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n{{.Suggestions}}\n</fix_suggestions>\n"+
+			"Use and rely only on these suggestions provided!\n"+
+			"For reference, here is full story until this chapter ```json\n{{.StoryChapters}}\n```. "+
+			"There are maybe more chapters but lets focus on story until this moment. "+
+			"Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
+			"Use suggestions from fix_suggestions tag to re-write the story chapter {{.ChapterNumber}} {{.ChapterName}} as suggested. "+
+			"Answer with only one chapter text. We are fixing it one chapter at the time. "+
+			"Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
+			"It is OK to extend the story if that is necessary to fix the plot. "+
+			"If possible, try to fix this chapter while keeping similar word count. "+
+			"Small to medium text extensions are totally OK too.",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
+			gollm.WithOutput("Story chapter text. Answer with story chapter text only. We need nothing else than just this one chapter with fixed content. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with this one fixed chapter text."),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"Issues":        problem.ToJson(),
+		"StoryChapters": storyEl.ToJson(),
+		"Suggestions":   suggestions.ToJson(),
 		"ChapterNumber": problem.Chapter,
 		"ChapterName":   problem.ChapterName,
 		"Audience":      a.audience,
@@ -72,9 +164,11 @@ func (a *AI) FigureStoryLogicalProblems(storyText string) story.Problems {
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryIssueSpotter",
 		"Pre read the story and figure out the logical issues.",
-		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
+		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n"+
+			"<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
 			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
-			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter. "+
+			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter."+
+			//"Prioritize logical plot flaws and keep entertainment issues secondary. "+
 			"If no flaws are found, do not include the chapter in your output.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),

@@ -39,7 +39,7 @@ func NewAI(audience string) (*AI, error) {
 		}
 		apiKey = viper.GetString(key)
 		if apiKey != "" {
-			log.Printf("Using LLM provider %q with %q for story building\n", provider, model)
+			log.Printf("Using LLM provider %q with %q model\n", provider, model)
 			break
 		}
 	}
@@ -74,6 +74,7 @@ func NewAI(audience string) (*AI, error) {
 	cfg.Model = model
 	cfg.MaxTokens = 4096
 	cfg.MaxRetries = 30
+	cfg.Timeout = time.Minute * 2
 	cfg.RetryDelay = time.Second * 5
 	cfg.LogLevel = gollm.LogLevelInfo
 	conn, err := llm.NewLLM(cfg, utils.NewLogger(cfg.LogLevel), registry)
