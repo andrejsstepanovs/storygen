@@ -79,7 +79,12 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 					log.Println("Story is OK")
 					break
 				}
-				log.Printf("Found problems in chapters: %d\n", len(problems))
+
+				c := fmt.Sprintf("%d", len(problems))
+				if len(problems) == len(s.Chapters) {
+					c = "all"
+				}
+				log.Printf("Found problems in %s chapters\n", c)
 
 				allSuggestions := make(story.Suggestions, 0)
 				for _, problem := range problems {
