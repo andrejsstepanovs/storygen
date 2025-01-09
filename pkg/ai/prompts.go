@@ -249,14 +249,15 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 	var picked []story.Problem
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
-		log.Println("Failed to parse JSON. Trying again")
 		responseJson := gollm.CleanResponse(templateResponse)
 		responseJson = fmt.Sprintf("[%s]", responseJson)
 		err = json.Unmarshal([]byte(responseJson), &picked)
-		if err != nil {
-			log.Println(templateResponse)
-			log.Println("cleaned:", responseJson)
-			log.Fatalf("Failed to parse problems as JSON: %v", err)
+		if responseJson != "[]" {
+			if err != nil {
+				log.Println(templateResponse)
+				log.Println("cleaned:", responseJson)
+				log.Fatalf("Failed to parse problems as JSON: %v", err)
+			}
 		}
 	}
 
