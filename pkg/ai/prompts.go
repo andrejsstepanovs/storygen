@@ -260,9 +260,14 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 		}
 	}
 
-	var p story.Problems
-	p = picked
-	return p
+	ret := make(story.Problems, 0)
+	for _, pr := range picked {
+		if len(pr.Issues) > 0 {
+			ret = append(ret, pr)
+		}
+	}
+
+	return ret
 }
 
 func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
