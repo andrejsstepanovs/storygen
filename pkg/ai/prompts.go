@@ -120,14 +120,16 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 	var picked []story.Suggestion
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
-		log.Println("Failed to parse JSON. Trying again")
 		responseJson := gollm.CleanResponse(templateResponse)
-		responseJson = fmt.Sprintf("[%s]", responseJson)
-		err = json.Unmarshal([]byte(responseJson), &picked)
-		if err != nil {
-			log.Println(templateResponse)
-			log.Println("cleaned:", responseJson)
-			return story.Suggestions{}, templateResponse, err
+		if templateResponse != "[]" {
+			log.Println("Failed to parse JSON. Trying again")
+			responseJson = fmt.Sprintf("[%s]", responseJson)
+			err = json.Unmarshal([]byte(responseJson), &picked)
+			if err != nil {
+				log.Println(templateResponse)
+				log.Println("cleaned:", responseJson)
+				return story.Suggestions{}, templateResponse, err
+			}
 		}
 	}
 
