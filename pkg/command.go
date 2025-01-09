@@ -163,7 +163,7 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 	}
 
-	file, err := utils.SaveTextToFile("final_groomed_"+s.Title, "json", s.BuildContent(story.TextChapter, story.TextTheEnd))
+	file, err := utils.SaveTextToFile("final_groomed_"+s.Title, "json", s.ToJson())
 	if err != nil {
 		log.Fatalln(err)
 	}
