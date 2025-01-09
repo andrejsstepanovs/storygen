@@ -193,6 +193,21 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 }
 
 func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) story.Problems {
+	problemInjsonTxt := ""
+	for i := 0; i < 3; i++ {
+		problems, query, err := a.findStoryLogicalProblems(storyText, loop, maxLoops, problemInjsonTxt)
+		if err == nil {
+			return problems
+		}
+		log.Println("Failed to figure story problems. Trying again.")
+		problemInjsonTxt = fmt.Sprintf("Your last answer contained invalid JSON: ----\n\n%s\n\n----. Try again and this time make sure your JSON is valid!", query)
+	}
+
+	log.Fatalln("Failed to figure story problems")
+	return story.Problems{}
+}
+
+func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, promptExend string) (story.Problems, string, error) {
 	problems := story.Problems{
 		{
 			Chapter:     1,
@@ -221,7 +236,7 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
 			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter."+
 			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n"+
-			"If no flaws are found, do not include the chapter in your output.",
+			"If no flaws are found, do not include the chapter in your output. "+promptExend,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
 			gollm.WithOutput("JSON of story issues (problems) (as array) in JSON format. Use only protagonists from the list that was provided."),
@@ -256,7 +271,7 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 			if err != nil {
 				log.Println(templateResponse)
 				log.Println("cleaned:", responseJson)
-				log.Fatalf("Failed to parse problems as JSON: %v", err)
+				return story.Problems{}, templateResponse, err
 			}
 		}
 	}
@@ -268,7 +283,7 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 		}
 	}
 
-	return ret
+	return ret, "", nil
 }
 
 func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
