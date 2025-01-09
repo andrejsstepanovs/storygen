@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/andrejsstepanovs/storygen/pkg/ai"
 	"github.com/andrejsstepanovs/storygen/pkg/story"
@@ -58,106 +57,118 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 			x := &story.Story{}
 			json.Unmarshal(utils.LoadTextFromFile(file), x)
 
-			chapterCount, maxChapterWords, _ := getChapterCountAndLength()
-			chapterWords := chapterWordCount(chapterCount, maxChapterWords)
-
 			s := *x
-			preReadLoops := viper.GetInt("STORYGEN_PREREAD_LOOPS")
-			if preReadLoops == 0 {
-				preReadLoops = 3
-			}
+			file, s = refineStory(llm, s, 0)
 
-			allAddressedSuggestions := make(story.Suggestions, 0)
-			for i := 1; i <= preReadLoops; i++ {
-				log.Printf("Pre-reading / story fixing loop %d...\n", i)
-				text := s.BuildContent(story.TextChapter, story.TextTheEnd)
+			log.Println("Done")
+			log.Println(file)
 
-				utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
+			return nil
+		},
+	}
+}
 
-				problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
-				if len(problems) == 0 {
-					log.Println("Story is OK")
-					break
-				}
+func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Story) {
+	if preReadLoops == 0 {
+		preReadLoops = viper.GetInt("STORYGEN_PREREAD_LOOPS")
+		if preReadLoops == 0 {
+			preReadLoops = 3
+		}
+	}
 
-				c := fmt.Sprintf("%d", len(problems))
-				if len(problems) == len(s.Chapters) {
-					c = "all"
-				}
-				log.Printf("Found problems in %s chapters\n", c)
+	chapterCount, maxChapterWords, _ := utils.GetChapterCountAndLength()
+	chapterWords := utils.ChapterWordCount(chapterCount, maxChapterWords)
 
-				allSuggestions := make(story.Suggestions, 0)
-				for _, problem := range problems {
-					log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)
-					for _, c := range s.Chapters {
-						if c.Number == problem.Chapter {
-							log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
-							suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
-							log.Printf("Suggestions: %d", len(suggestions))
-							for _, sug := range suggestions {
-								allSuggestions = append(allSuggestions, sug)
-							}
-						}
-					}
-				}
+	allAddressedSuggestions := make(story.Suggestions, 0)
+	for i := 1; i <= preReadLoops; i++ {
+		log.Printf("Pre-reading / story fixing loop: %d...\n", i)
+		text := s.BuildContent(story.TextChapter, story.TextTheEnd)
 
-				log.Printf("Found problems: %d\n", len(problems))
-				chapterSuggestions := make(map[int]story.Suggestions)
-				for _, sug := range allSuggestions {
-					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
-				}
-				totalSuggestions := make([]string, 0)
-				for chapter, suggestions := range chapterSuggestions {
-					w := make([]string, 0)
+		utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
+
+		problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
+		if len(problems) == 0 {
+			log.Println("Story is OK")
+			break
+		}
+
+		c := fmt.Sprintf("%d", len(problems))
+		if len(problems) == len(s.Chapters) {
+			c = "all"
+		}
+		log.Printf("Found problems in %s chapters\n", c)
+
+		allSuggestions := make(story.Suggestions, 0)
+		for _, problem := range problems {
+			log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)
+			for _, c := range s.Chapters {
+				if c.Number == problem.Chapter {
+					log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
+					suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
+					log.Printf("Suggestions: %d", len(suggestions))
 					for _, sug := range suggestions {
-						for _, k := range sug.Suggestions {
-							w = append(w, k)
-							totalSuggestions = append(totalSuggestions, k)
-						}
-					}
-					log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
-					for _, txt := range w {
-						log.Printf(" - %s", txt)
+						allSuggestions = append(allSuggestions, sug)
 					}
 				}
-				log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
+			}
+		}
 
-				// sort chapterSuggestions by key
-				keys := make([]int, 0, len(chapterSuggestions))
-				for k := range chapterSuggestions {
-					keys = append(keys, k)
+		log.Printf("Found problems: %d\n", len(problems))
+		chapterSuggestions := make(map[int]story.Suggestions)
+		for _, sug := range allSuggestions {
+			chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
+		}
+		totalSuggestions := make([]string, 0)
+		for chapter, suggestions := range chapterSuggestions {
+			w := make([]string, 0)
+			for _, sug := range suggestions {
+				for _, k := range sug.Suggestions {
+					w = append(w, k)
+					totalSuggestions = append(totalSuggestions, k)
 				}
-				sort.Ints(keys)
+			}
+			log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
+			for _, txt := range w {
+				log.Printf(" - %s", txt)
+			}
+		}
+		log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
 
-				log.Println("Fixing...")
-				for _, chapter := range keys {
-					suggestions := chapterSuggestions[chapter]
-					for _, problem := range problems {
-						if problem.Chapter == chapter {
-							for j, c := range s.Chapters {
-								if c.Number == problem.Chapter {
-									log.Printf("Adjusting chapter %d. %q with %d suggestions (%d)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
-									wordCount := chapterWords[problem.Chapter]
-									fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
-									s.Chapters[j].Text = fixedChapter
-									break
-								}
-							}
+		// sort chapterSuggestions by key
+		keys := make([]int, 0, len(chapterSuggestions))
+		for k := range chapterSuggestions {
+			keys = append(keys, k)
+		}
+		sort.Ints(keys)
+
+		log.Println("Fixing...")
+		for _, chapter := range keys {
+			suggestions := chapterSuggestions[chapter]
+			for _, problem := range problems {
+				if problem.Chapter == chapter {
+					for j, c := range s.Chapters {
+						if c.Number == problem.Chapter {
+							log.Printf("Adjusting chapter %d. %q with %d suggestions (%d)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
+							wordCount := chapterWords[problem.Chapter]
+							fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
+							s.Chapters[j].Text = fixedChapter
 							break
 						}
 					}
+					break
 				}
-
-				allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 			}
+		}
 
-			log.Println("Done")
-			file, err := utils.SaveTextToFile("groomed_"+s.Title, "json", s.ToJson())
-			log.Println(file)
-
-			return err
-		},
+		allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 	}
+
+	file, err := utils.SaveTextToFile("final_groomed_"+s.Title, "json", s.BuildContent(story.TextChapter, story.TextTheEnd))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return file, s
 }
 
 func newTranslateCommand(llm *ai.AI) *cobra.Command {
@@ -249,6 +260,8 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			}
 			log.Println("JSON saved")
 
+			file, s = refineStory(llm, s, 0)
+
 			toLang := viper.GetString("STORYGEN_LANGUAGE")
 			if toLang == "" {
 				toLang = "english"
@@ -323,7 +336,7 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	s.StorySuggestion = strings.Trim(suggestion, " ")
 	s.Structure = story.GetRandomStoryStructure()
 
-	chapterCount, maxChapterWords, lengthTxt := getChapterCountAndLength()
+	chapterCount, maxChapterWords, lengthTxt := utils.GetChapterCountAndLength()
 	s.Length = lengthTxt
 	log.Printf("Length: %s", s.Length)
 	log.Printf("Structure: %s", s.Structure.ToJson())
@@ -382,7 +395,7 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 		})
 	}
 
-	chapterWords := chapterWordCount(chapterCount, maxChapterWords)
+	chapterWords := utils.ChapterWordCount(chapterCount, maxChapterWords)
 	for i, title := range chapterTitles {
 		number := i + 1
 		wordCount := chapterWords[number]
@@ -396,53 +409,4 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	log.Printf("Picked title: %s\n", s.Title)
 
 	return s
-}
-
-func chapterWordCount(chapterCount, maxChapterWords int) map[int]int {
-	chapterWords := make(map[int]int)
-	for i := 0; i < chapterCount; i++ {
-		number := i + 1
-		wordCount := maxChapterWords
-
-		// first chapter 80% shorter
-		if number == 1 {
-			wordCount = int(float64(maxChapterWords) * 0.8)
-		}
-
-		// last chapter 60% shorter
-		if number == chapterCount {
-			wordCount = int(float64(maxChapterWords) * 0.6)
-		}
-		chapterWords[number] = wordCount
-	}
-	return chapterWords
-}
-
-func getChapterCountAndLength() (int, int, string) {
-	readSpeedWordsInMinute := viper.GetInt("STORYGEN_READSPEED")
-	if readSpeedWordsInMinute == 0 {
-		log.Fatalln("Please set the STORYGEN_READSPEED environment variable")
-	}
-
-	lengthInMin := viper.GetInt64("STORYGEN_LENGTH_IN_MIN")
-	if lengthInMin == 0 {
-		lengthInMin = 8
-	}
-	minutes := time.Minute * time.Duration(lengthInMin)
-	log.Printf("Approximate length: %d min\n", int(minutes.Minutes()))
-
-	chapterCount := viper.GetInt("STORYGEN_CHAPTERS")
-	if chapterCount == 0 {
-		chapterCount = int(minutes.Minutes() / 1.6)
-	}
-	if chapterCount < 3 {
-		chapterCount = 3
-	}
-	log.Printf("Chapter count: %d\n", chapterCount)
-
-	maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / chapterCount
-	format := "Full story reading time: %d minutes. Chapter count: %d. Longest chapter: %d words."
-	lengthText := fmt.Sprintf(format, int(minutes.Minutes()), chapterCount, maxChapterWords)
-
-	return chapterCount, maxChapterWords, lengthText
 }
