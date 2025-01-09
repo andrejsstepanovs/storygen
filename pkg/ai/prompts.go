@@ -250,8 +250,8 @@ func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) st
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
 		responseJson := gollm.CleanResponse(templateResponse)
-		err = json.Unmarshal([]byte(responseJson), &picked)
 		if responseJson != "[]" {
+			err = json.Unmarshal([]byte(responseJson), &picked)
 			responseJson = fmt.Sprintf("[%s]", responseJson)
 			if err != nil {
 				log.Println(templateResponse)
