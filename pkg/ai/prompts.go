@@ -664,7 +664,7 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are writing a story book chapter by chapter. Expand the story with one chapter."),
 			gollm.WithDirectives("You are creative and decisive story writer."),
-			gollm.WithOutput("Answer only with the story content. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the story chapter text."),
+			gollm.WithOutput("Answer only with the story content. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Write only story content and nothing else. Answer only with the story chapter text."),
 		),
 	)
 
