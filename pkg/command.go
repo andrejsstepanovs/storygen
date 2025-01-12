@@ -196,7 +196,6 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			soundFile := file[:len(file)-4] + "mp3"
 
 			file = toLang + "_" + file
-			ToVoice(translated, file, text)
 			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
 
 			return err

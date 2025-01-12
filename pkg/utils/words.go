@@ -43,7 +43,7 @@ func GetChapterCountAndLength() (int, int, string) {
 
 	chapterCount := viper.GetInt("STORYGEN_CHAPTERS")
 	if chapterCount == 0 {
-		chapterCount = int(minutes.Minutes() / 1.6)
+		chapterCount = int(minutes.Minutes() / 1.9)
 	}
 	if chapterCount < 3 {
 		chapterCount = 3
