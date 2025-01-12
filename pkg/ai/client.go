@@ -26,26 +26,28 @@ func NewAI(audience string) (*AI, error) {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	keys := []string{
-		"ANTHROPIC_API_KEY",
-		"OPENAI_API_KEY",
-		"DEEPSEEK_API_KEY",
-		"OPENROUTER_API_KEY",
-	}
 	apiKey := ""
-	for _, key := range keys {
-		if !strings.Contains(strings.ToLower(key), strings.ToLower(provider)) {
-			continue
+	if provider != "ollama" {
+		keys := []string{
+			"ANTHROPIC_API_KEY",
+			"OPENAI_API_KEY",
+			"DEEPSEEK_API_KEY",
+			"OPENROUTER_API_KEY",
 		}
-		apiKey = viper.GetString(key)
-		if apiKey != "" {
-			log.Printf("Using LLM provider %q with %q model\n", provider, model)
-			break
+		for _, key := range keys {
+			if !strings.Contains(strings.ToLower(key), strings.ToLower(provider)) {
+				continue
+			}
+			apiKey = viper.GetString(key)
+			if apiKey != "" {
+				log.Printf("Using LLM provider %q with %q model\n", provider, model)
+				break
+			}
 		}
-	}
 
-	if apiKey == "" {
-		log.Fatalf("No API key found for provider %q", provider)
+		if apiKey == "" {
+			log.Fatalf("No API key found for provider %q", provider)
+		}
 	}
 
 	registry := providers.NewProviderRegistry()

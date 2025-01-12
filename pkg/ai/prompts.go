@@ -373,11 +373,12 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 		"Create a list of morale names that will fit the {{.Audience}} story we will write:\n```json\n{{.Story}}\n```\n\n"+
 			"Pick morales (`name`) from list of available morales:\n```\njson{{.Morales}}\n```"+
 			"Be flexible with your picks. We want creative choices for exciting story.\n"+
-			"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.",
+			"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.\n"+
+			"No yapping. Answer with a list of morale names as strings (as simple array list with no key(s)) in JSON format. Don't explain your choice (no explanation).",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
-			gollm.WithOutput("List of morale names strings (as array) in JSON format. Don't explain your choice. No yapping. Answer only with the morale names in JSON array."),
-			gollm.WithExamples(moraleExample(3)),
+			gollm.WithOutput("Answer only with the morale names in JSON array."),
+			gollm.WithExamples([]string{moraleExample(3)}...),
 		),
 	)
 
@@ -396,15 +397,17 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	responseJson := gollm.CleanResponse(templateResponse)
-	responseJson = gollm.CleanResponse(responseJson)
-
 	var picked []string
-	err = json.Unmarshal([]byte(responseJson), &picked)
-	if err != nil {
-		log.Println(templateResponse)
-		log.Println(responseJson)
-		log.Fatalf("Failed to parse morales response as JSON: %v", err)
+	responseJson := templateResponse
+	if responseJson != "[]" {
+		responseJson = gollm.CleanResponse(templateResponse)
+		err = json.Unmarshal([]byte(responseJson), &picked)
+		if err != nil {
+			log.Println(templateResponse)
+			log.Println("cleaned:", responseJson)
+			log.Fatalf("Failed to parse JSON for found morales response: %v", err)
+			//return story.Morales{}, templateResponse , err
+		}
 	}
 
 	//fmt.Printf("%s", strings.Join(picked, ","))
