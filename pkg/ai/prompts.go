@@ -313,7 +313,8 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 			"Be mindful about how many you are picking. "+
 			"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
 			"Your task now is to pick from the list.\n"+
-			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting. "+
+			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting."+
+			"Don't specify protagonists sexual orientations, that type of info is mostly irelevant in {{.Audience}} storys."+
 			ForceJson+"\n",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
