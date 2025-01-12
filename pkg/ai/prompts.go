@@ -33,7 +33,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions) story.Suggestions {
 	problemInjsonTxt := ""
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		suggestions, query, err := a.trySuggestStoryFixes(storyEl, problem, addressedSuggestions, problemInjsonTxt)
 		if err == nil {
 			return suggestions
@@ -194,7 +194,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 
 func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) story.Problems {
 	problemInjsonTxt := ""
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		problems, query, err := a.findStoryLogicalProblems(storyText, loop, maxLoops, problemInjsonTxt)
 		if err == nil {
 			return problems
