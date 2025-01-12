@@ -31,6 +31,8 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"It’ll help keep the pacing fresh and engaging!" +
 	"Another thing - laughing and dancing is nice but too much is cringe."
 
+const ForceJson = "No yapping. Answer only with JSON content. Don't explain your choice (no explanation). No other explanations or unrelated text is necessary. Be careful generating JSON, it needs to be valid."
+
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions) story.Suggestions {
 	problemInjsonTxt := ""
 	for i := 0; i < 10; i++ {
@@ -91,6 +93,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
 			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n"+
 			"# Answer:"+
+			"- "+ForceJson+"\n"+
 			"- Return empty JSON array (`[]`) if there is nothing important to fix. "+problemInjsonTxt,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
@@ -162,6 +165,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 			"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
 			//"- It is OK to extend the story if that is necessary to fix the plot. "+
 			"- Small text extensions are OK, but we should try to keep this chapter withing a limit of {{.Words}} words."+
+			"- "+ForceJson+"\n"+
 			ChapterPromptInstructions,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
@@ -236,6 +240,7 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
 			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter."+
 			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n"+
+			ForceJson+"\n"+
 			"If no flaws are found, do not include the chapter in your output. "+promptExend,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
@@ -308,7 +313,8 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 			"Be mindful about how many you are picking. "+
 			"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
 			"Your task now is to pick from the list.\n"+
-			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting. ",
+			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting. "+
+			ForceJson+"\n",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("JSON of protagonist elements (as array) in JSON format. Use only protagonists from the list that was provided."),
@@ -374,7 +380,8 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 			"Pick morales (`name`) from list of available morales:\n```\njson{{.Morales}}\n```"+
 			"Be flexible with your picks. We want creative choices for exciting story.\n"+
 			"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.\n"+
-			"No yapping. Answer with a list of morale names as strings (as simple array list with no key(s)) in JSON format. Don't explain your choice (no explanation).",
+			ForceJson+"\n"+
+			"No yapping. Answer with a list of morale names as strings (as simple array list with no key(s)) in JSON format.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("Answer only with the morale names in JSON array."),
@@ -431,10 +438,10 @@ func (a *AI) FigureStoryVillain(storyEl story.Story) string {
 			"with his/her own backstory, skills and agenda "+
 			"that we can work with in the story.\n"+
 			"By the way, villain can also be elements of nature or unmovable objects and that kind of stuff. "+
-			"Depends on the story we're building. Be creative if possible. ",
+			"Depends on the story we're building. Be creative if possible.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story book. Villain that you are building (writing) will be used later on when story itself will be written."),
-			gollm.WithOutput("Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice. Answer only with the villain(s) description."),
+			gollm.WithOutput("Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) description."),
 		),
 	)
 
@@ -473,7 +480,7 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 			"Consider adding some plot twists and funny interactions between characters.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story book."),
-			gollm.WithOutput("Story summary and story plan to help the writer later on when they will write the story."),
+			gollm.WithOutput("Story summary and story plan to help the writer later on when they will write the story. No yapping. Don't explain your choice or add any other notes and explenations."),
 		),
 	)
 
@@ -513,11 +520,11 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 		"Pick time periods that will be a good fit for the given story.",
 		"Create a list of time periods that will fit the {{.Audience}} story we will write:\n```json\n{{.Story}}\n```\n\n"+
 			"Pick time periods (`name`) from list of available time periods:\n```\njson{{.TimePeriods}}\n```"+
-			"Be flexible with your picks. We want a vibrant, exciting story and time period is important and needs to be suitable and interesting. ",
+			"Be flexible with your picks. We want a vibrant, exciting story and time period is important and needs to be suitable and interesting. "+ForceJson,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("List of time period names strings (as array) in JSON format"),
-			gollm.WithOutput("Answer only JSON. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON."),
+			gollm.WithOutput(ForceJson),
 			gollm.WithExamples(timePeriodExample(3)),
 		),
 	)
@@ -561,7 +568,7 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []s
 			"Take into consideration Story Suggestion. "+
 			"Be mindful about the chapter count so it aligns good with story length. Usually there is no need for more than {{.Count}} chapters. "+
 			"Write chapters so the plot can move forward and is aligned with defined {{.Audience}} story structure requirements. "+
-			"No yapping. Answer only with JSON content. Don't explain your choice (no explanation).",
+			ForceJson,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story content chapter titles."),
 			gollm.WithOutput("List of chapter titles strings (as array) in JSON format. No other text should be present. Only JSON."),
@@ -606,7 +613,7 @@ func (a *AI) FigureStorySummary(storyEl story.Story) string {
 			"If exists, take into consideration Story Suggestion.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are summarizing a story book."),
-			gollm.WithOutput("Answer only with the summary. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the Summary text."),
+			gollm.WithOutput("Answer only with the summary. No yapping. No other explanations, comments, notes or anything else. Answer only with the story summary text (content)."),
 		),
 	)
 
@@ -631,11 +638,11 @@ func (a *AI) FigureStoryTitle(storyEl story.Story) string {
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryTitleGenerator",
 		"Analyze a story and come up with creative book name for the story.",
-		"Write a book name (title) for this {{.Audience}} story. **This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\n",
+		"Write a book name (title) for this {{.Audience}} story. **This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\nTitle must be 3-5 words long. Answer with 3-5 words!",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are writing a story book title."),
 			gollm.WithExamples([]string{"The Secret Library of Wishes", "The Brave Little Firefly", "The girl and the Talking Tree"}...),
-			gollm.WithOutput("Answer only with the title.  No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the Title text."),
+			gollm.WithOutput("Answer only with the short title (3-5 words). No yapping. No other explanations, comments, notes or anything else. Answer only with short story title text (content)."),
 		),
 	)
 
@@ -711,7 +718,7 @@ func (a *AI) FigureStoryLocation(storyEl story.Story) string {
 			"If writing for children then make interesting but not excessively complicated, so that little readers have no problem understanding it.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story book. Story location that you are building (writing) will be used later on when story itself will be written."),
-			gollm.WithOutput("Answer only with the title. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the story location text."),
+			gollm.WithOutput("Answer only with the location text (content). No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the story location text."),
 		),
 	)
 
