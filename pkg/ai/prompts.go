@@ -572,8 +572,8 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []s
 			ForceJson,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story content chapter titles."),
-			gollm.WithOutput("List of chapter titles strings (as array) in JSON format. No other text should be present. Only JSON."),
-			gollm.WithExamples([]string{"The Mysterious Map", "The Magic Paintbrush", "The Rainbow Bridge", "The final battle", "The Return to Home Sweet Home"}...),
+			gollm.WithOutput("List of chapter titles strings (as array) in JSON format. No other text should be present. Only JSON array (no keys) of strings."),
+			gollm.WithExamples([]string{"['The Mysterious Map', 'The Magic Paintbrush', 'The Rainbow Bridge', 'The final battle', 'The Return to Home Sweet Home']"}...),
 		),
 	)
 
@@ -593,12 +593,12 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []s
 	}
 
 	responseJson := gollm.CleanResponse(templateResponse)
-	responseJson = gollm.CleanResponse(responseJson)
 
 	var picked []string
 	err = json.Unmarshal([]byte(responseJson), &picked)
 	if err != nil {
 		fmt.Println(templateResponse)
+		fmt.Println(responseJson)
 		log.Fatalf("Failed to parse chapters response as JSON: %v", err)
 	}
 

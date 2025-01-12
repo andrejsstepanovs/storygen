@@ -84,7 +84,7 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		log.Printf("Pre-reading / story fixing loop: %d...\n", i)
 		text := s.BuildContent(story.TextChapter, story.TextTheEnd)
 
-		utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
+		//utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
 
 		problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
 		if len(problems) == 0 {
@@ -119,7 +119,7 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 			chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
 		}
 		totalSuggestions := make([]string, 0)
-		for chapter, suggestions := range chapterSuggestions {
+		for _, suggestions := range chapterSuggestions {
 			w := make([]string, 0)
 			for _, sug := range suggestions {
 				for _, k := range sug.Suggestions {
@@ -127,10 +127,10 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 					totalSuggestions = append(totalSuggestions, k)
 				}
 			}
-			log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
-			for _, txt := range w {
-				log.Printf(" - %s", txt)
-			}
+			//log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
+			//for _, txt := range w {
+			//	log.Printf(" - %s", txt)
+			//}
 		}
 		log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
 
@@ -160,6 +160,7 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 			}
 		}
 
+		utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_"+s.Title, "json", s.ToJson())
 		allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 	}
 
