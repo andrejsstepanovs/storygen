@@ -560,7 +560,8 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []s
 			"Make sure that chapter titles align with existing story details. "+
 			"Take into consideration Story Suggestion. "+
 			"Be mindful about the chapter count so it aligns good with story length. Usually there is no need for more than {{.Count}} chapters. "+
-			"Write chapters so the plot can move forward and is aligned with defined {{.Audience}} story structure requirements. ",
+			"Write chapters so the plot can move forward and is aligned with defined {{.Audience}} story structure requirements. "+
+			"No yapping. Answer only with JSON content. Don't explain your choice (no explanation).",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story content chapter titles."),
 			gollm.WithOutput("List of chapter titles strings (as array) in JSON format. No other text should be present. Only JSON."),
