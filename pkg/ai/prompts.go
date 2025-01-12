@@ -639,11 +639,12 @@ func (a *AI) FigureStoryTitle(storyEl story.Story) string {
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryTitleGenerator",
 		"Analyze a story and come up with creative book name for the story.",
-		"Write a book name (title) for this {{.Audience}} story. **This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\nTitle must be 3-5 words long. Answer with 3-5 words!",
+		"Write a book name (title) for this {{.Audience}} story. **This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
+			"Title must be 3-5 words long. Do not explain your choice, no explenation, notes or anything else is necessary. Answer only with 3-5 words!",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are writing a story book title."),
 			gollm.WithExamples([]string{"The Secret Library of Wishes", "The Brave Little Firefly", "The girl and the Talking Tree"}...),
-			gollm.WithOutput("Answer only with the short title (3-5 words). No yapping. No other explanations, comments, notes or anything else. Answer only with short story title text (content)."),
+			gollm.WithOutput("Answer only with the short title (3-5 words). Answer only with short story title text."),
 		),
 	)
 
