@@ -128,12 +128,15 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		responseJson := gollm.CleanResponse(templateResponse)
 		if responseJson != "[]" {
 			log.Println("Failed to parse JSON. Trying again")
-			//responseJson = fmt.Sprintf("[%s]", responseJson)
 			err = json.Unmarshal([]byte(responseJson), &picked)
 			if err != nil {
-				log.Println(templateResponse)
-				log.Println("cleaned:", responseJson)
-				return story.Suggestions{}, templateResponse, err
+				responseJson = fmt.Sprintf("[%s]", responseJson)
+				err = json.Unmarshal([]byte(responseJson), &picked)
+				if err != nil {
+					log.Println(templateResponse)
+					log.Println("cleaned:", responseJson)
+					return story.Suggestions{}, templateResponse, err
+				}
 			}
 		}
 	}
@@ -273,12 +276,15 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 	if err != nil {
 		responseJson := gollm.CleanResponse(templateResponse)
 		if responseJson != "[]" {
-			responseJson = fmt.Sprintf("[%s]", responseJson)
-			err = json.Unmarshal([]byte(responseJson), &picked)
+			err = json.Unmarshal([]byte(templateResponse), &picked)
 			if err != nil {
-				log.Println(templateResponse)
-				log.Println("cleaned:", responseJson)
-				return story.Problems{}, templateResponse, err
+				responseJson = fmt.Sprintf("[%s]", responseJson)
+				err = json.Unmarshal([]byte(responseJson), &picked)
+				if err != nil {
+					log.Println(templateResponse)
+					log.Println("cleaned:", responseJson)
+					return story.Problems{}, templateResponse, err
+				}
 			}
 		}
 	}
@@ -347,12 +353,15 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	if err != nil {
 		log.Println("Failed to parse JSON. Trying again")
 		responseJson := gollm.CleanResponse(templateResponse)
-		responseJson = fmt.Sprintf("[%s]", responseJson)
-		err = json.Unmarshal([]byte(responseJson), &picked)
+		err = json.Unmarshal([]byte(templateResponse), &picked)
 		if err != nil {
-			log.Println(templateResponse)
-			log.Println("cleaned:", responseJson)
-			log.Fatalf("Failed to parse time protagonists as JSON: %v", err)
+			responseJson = fmt.Sprintf("[%s]", responseJson)
+			err = json.Unmarshal([]byte(responseJson), &picked)
+			if err != nil {
+				log.Println(templateResponse)
+				log.Println("cleaned:", responseJson)
+				log.Fatalf("Failed to parse time protagonists as JSON: %v", err)
+			}
 		}
 	}
 
