@@ -99,7 +99,7 @@ func newStoryCompetitionCommand(llm *ai.AI) *cobra.Command {
 		Short: "Generates x stories and compares them to find the best one.",
 		RunE: func(_ *cobra.Command, args []string) error {
 			count := 10
-			if len(args) != 1 {
+			if len(args) == 1 {
 				var err error
 				count, err = strconv.Atoi(args[0])
 				if err != nil {
@@ -108,6 +108,9 @@ func newStoryCompetitionCommand(llm *ai.AI) *cobra.Command {
 			}
 			log.Printf("Generating %d stories...\n", count)
 			ideas := llm.FigureStoryIdeas(count)
+			for _, idea := range ideas {
+				log.Printf("Idea: %s\n", idea)
+			}
 
 			stories := make([]story.Story, 0)
 			for _, idea := range ideas {
