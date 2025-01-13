@@ -5,24 +5,26 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
 )
 
-func TextToSpeech(voice openai.SpeechVoice, outputFilePath, textToSpeech, inbetweenFile string) error {
+func TextToSpeech(voice openai.SpeechVoice, dir, outputFilePath, textToSpeech, inbetweenFile string) error {
 	files := make([]string, 0)
 	chunks := chunkText(textToSpeech, 2000)
 	for i, chunk := range chunks {
 		file := fmt.Sprintf("%d_%s", i, outputFilePath)
-		files = append(files, file)
-		err := openaiFile(voice, file, chunk)
+		targetFile := path.Join(dir, file)
+		files = append(files, targetFile)
+		err := openaiFile(voice, targetFile, chunk)
 		if err != nil {
 			return fmt.Errorf("chunk processing failed: %v", err)
 		}
 	}
 
-	err := JoinMp3Files(files, outputFilePath, inbetweenFile)
+	err := JoinMp3Files(files, path.Join(dir, outputFilePath), inbetweenFile)
 	if err != nil {
 		return err
 	}

@@ -78,13 +78,14 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 
 	chapterCount, maxChapterWords, _ := utils.GetChapterCountAndLength()
 	chapterWords := utils.ChapterWordCount(chapterCount, maxChapterWords)
+    tmpDir := viper.GetString("STORYGEN_TMP_DIR")
 
 	allAddressedSuggestions := make(story.Suggestions, 0)
 	for i := 1; i <= preReadLoops; i++ {
 		log.Printf("Pre-reading / story fixing loop: %d...\n", i)
 		text := s.BuildContent(story.TextChapter, story.TextTheEnd)
 
-		//utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
+    	//utils.SaveTextToFile(tmpDir, strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
 
 		problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
 		if len(problems) == 0 {
@@ -160,11 +161,11 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 			}
 		}
 
-		utils.SaveTextToFile(strconv.Itoa(i)+"_groomed_"+s.Title, "json", s.ToJson())
+		utils.SaveTextToFile(tmpDir, strconv.Itoa(i)+"_groomed_"+s.Title, "json", s.ToJson())
 		allAddressedSuggestions = append(allAddressedSuggestions, allSuggestions...)
 	}
 
-	file, err := utils.SaveTextToFile("final_groomed_"+s.Title, "json", s.ToJson())
+    file, err := utils.SaveTextToFile(tmpDir, "final_groomed_"+s.Title, "json", s.ToJson())
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -192,13 +193,10 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 				translated, chapter, theEnd = translate(llm, *s, toLang)
 			}
 
-			text := translated.BuildContent(chapter, theEnd)
 			soundFile := file[:len(file)-4] + "mp3"
+			ToVoice(translated, toLang + "_" + soundFile, translated.BuildContent(chapter, theEnd))
 
-			file = toLang + "_" + file
-			err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, text, inbetweenChaptersFile)
-
-			return err
+			return nil
 		},
 	}
 }
@@ -233,7 +231,8 @@ func newWriteCommand(llm *ai.AI) *cobra.Command {
 			suggestion := strings.Join(args, " ")
 			s := buildStory(llm, suggestion)
 
-			file, err := utils.SaveTextToFile(s.Title, "json", s.ToJson())
+            tmpDir := viper.GetString("STORYGEN_TMP_DIR")
+			file, err := utils.SaveTextToFile(tmpDir, s.Title, "json", s.ToJson())
 			if err != nil {
 				return err
 			}
@@ -254,7 +253,8 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			suggestion := strings.Join(args, " ")
 			s := buildStory(llm, suggestion)
 
-			file, err := utils.SaveTextToFile(s.Title, "json", s.ToJson())
+            tmpDir := viper.GetString("STORYGEN_TMP_DIR")
+			file, err := utils.SaveTextToFile(tmpDir, s.Title, "json", s.ToJson())
 			if err != nil {
 				return err
 			}
@@ -273,7 +273,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 			if toLang != "english" {
 				title := s.Title
 				s, chapter, theEnd = translate(llm, s, toLang)
-				_, err = utils.SaveTextToFile(toLang+"_"+title, "json", s.ToJson())
+				_, err = utils.SaveTextToFile(tmpDir, toLang+"_"+title, "json", s.ToJson())
 				if err != nil {
 					return err
 				}
@@ -289,9 +289,9 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 func ToVoice(s story.Story, file, content string) {
 	soundFile := file[:len(file)-4] + "mp3"
-
+	toLang := viper.GetString("STORYGEN_TARGET_DIR")
 	log.Println("Text to Speech...")
-	err := tts.TextToSpeech(openai.VoiceShimmer, soundFile, content, inbetweenChaptersFile)
+	err := tts.TextToSpeech(openai.VoiceShimmer, toLang, soundFile, content, inbetweenChaptersFile)
 	if err != nil {
 		log.Fatalln(err)
 	}

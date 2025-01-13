@@ -98,7 +98,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
 			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid. "+problemInjsonTxt),
-			gollm.WithExamples(suggestions.ToJson()),
+			gollm.WithExamples([]string{suggestions.ToJson()}...),
 		),
 	)
 
@@ -126,7 +126,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		responseJson := gollm.CleanResponse(templateResponse)
 		if responseJson != "[]" {
 			log.Println("Failed to parse JSON. Trying again")
-			responseJson = fmt.Sprintf("[%s]", responseJson)
+			//responseJson = fmt.Sprintf("[%s]", responseJson)
 			err = json.Unmarshal([]byte(responseJson), &picked)
 			if err != nil {
 				log.Println(templateResponse)
@@ -246,7 +246,7 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
 			gollm.WithOutput("JSON of story issues (problems) (as array) in JSON format. Use only protagonists from the list that was provided."),
 			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'issues_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
-			gollm.WithExamples(problems.ToJson()),
+			gollm.WithExamples([]string{problems.ToJson()}...),
 		),
 	)
 

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"path"
 	"strings"
 )
 
@@ -18,14 +19,15 @@ func LoadTextFromFile(filename string) []byte {
 
 // SaveTextToFile saves the given text content to a file with the specified filename.
 // If the file does not exist, it will be created. If it does exist, it will be overwritten.
-func SaveTextToFile(filename, extension, text string) (string, error) {
+func SaveTextToFile(dir, filename, extension, text string) (string, error) {
 	filename = fmt.Sprintf("%s.%s", SanitizeFilename(filename), extension)
 
 	// Convert the text to a byte slice
 	data := []byte(text)
 
+    targetDir := path.Join(dir, filename)
 	// Write the data to the file with 0644 permissions (read/write for owner, read for others)
-	err := os.WriteFile(filename, data, 0644)
+	err := os.WriteFile(targetDir, data, 0644)
 	if err != nil {
 		return "", fmt.Errorf("failed to write to file: %v", err)
 	}
