@@ -445,7 +445,7 @@ func (a *AI) FigureStoryIdeas(count int) []string {
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("Answer only with the morale names in JSON array."),
-			gollm.WithExamples([]string{"a story about a boy and kangaroo", "mistery of lost cooky", "bob and his speedboat"}...),
+			gollm.WithExamples([]string{"a story about a boy and kangaroo", "mistery of lost cooky", "bob and his speedboat", "funny story about flying", "master and the boot"}...),
 		),
 	)
 
