@@ -41,9 +41,35 @@ func NewCommand() (*cobra.Command, error) {
 		newReadCommand(llm),
 		newWriteCommand(llm),
 		newGroomCommand(llm),
+		newStoryIdeasCommand(llm, audience),
 	)
 
 	return cmd, nil
+}
+
+func newStoryIdeasCommand(llm *ai.AI, audience string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "ideas",
+		Short: "Provide list of idewas for stories",
+		RunE: func(_ *cobra.Command, args []string) error {
+		    const defaultLen = 6
+		    l := defaultLen
+		    if len(args) == 1 {
+                count := args[0]
+                l, _ = strconv.Atoi(count)
+                if l == 0 {
+                    l = defaultLen
+                }
+            }
+
+            storyIdeas := llm.FigureStoryIdeas(l, audience)
+            log.Printf("Ideas: %d\n", len(storyIdeas))
+            for _, idea := range storyIdeas {
+                log.Printf("%s\n", idea)
+            }
+			return nil
+		},
+	}
 }
 
 func newGroomCommand(llm *ai.AI) *cobra.Command {

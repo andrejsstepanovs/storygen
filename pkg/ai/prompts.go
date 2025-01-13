@@ -423,6 +423,50 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 	return story.FindMoralesByName(picked)
 }
 
+func (a *AI) FigureStoryIdeas(count int, audience string) []string {
+	templatePrompt := gollm.NewPromptTemplate(
+		"StoryIdeasPicker",
+		"Come up with random story ideas.",
+		"Create a list of {{.Count}} story ideas that will fit the {{.Audience}}\n"+
+		"Be creative and funny."+
+		ForceJson+"\n"+
+		"No yapping. Answer with a list of story ideas as strings (as simple array list with no key(s)) in JSON format.",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
+			gollm.WithOutput("Answer only with the morale names in JSON array."),
+			gollm.WithExamples([]string{"a story about a boy and kangaroo", "mistery of lost cooky", "bob and his speedboat"}...),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"Count":    count,
+		"Audience": audience,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	var picked []string
+	responseJson := templateResponse
+	if responseJson != "[]" {
+		responseJson = gollm.CleanResponse(templateResponse)
+		err = json.Unmarshal([]byte(responseJson), &picked)
+		if err != nil {
+			log.Println(templateResponse)
+			log.Println("cleaned:", responseJson)
+			log.Fatalf("Failed to parse JSON for found morales response: %v", err)
+		}
+	}
+
+	return picked
+}
+
 func (a *AI) FigureStoryVillain(storyEl story.Story) string {
 	templatePrompt := gollm.NewPromptTemplate(
 		"VillainGenerator",
