@@ -42,6 +42,7 @@ func NewCommand() (*cobra.Command, error) {
 		newWriteCommand(llm),
 		newGroomCommand(llm),
 		newStoryIdeasCommand(llm, audience),
+		newStoryCompareCommand(llm, audience),
 	)
 
 	return cmd, nil
@@ -67,6 +68,31 @@ func newStoryIdeasCommand(llm *ai.AI, audience string) *cobra.Command {
             for _, idea := range storyIdeas {
                 log.Printf("%s\n", idea)
             }
+			return nil
+		},
+	}
+}
+
+func newStoryCompareCommand(llm *ai.AI, audience string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "compare",
+		Short: "Compare two stories. First param is path to one json file, second is path to another json file",
+		RunE: func(_ *cobra.Command, args []string) error {
+		    storyAFile := args[0]
+		    storyBFile := args[1]
+            log.Printf("%q, %q\n", storyAFile, storyBFile)
+
+			storyA := &story.Story{}
+			storyB := &story.Story{}
+			json.Unmarshal(utils.LoadTextFromFile(storyAFile), storyA)
+			json.Unmarshal(utils.LoadTextFromFile(storyBFile), storyB)
+
+            log.Printf("StoryA: %q\n", storyA.Title)
+            log.Printf("StoryB: %q\n", storyB.Title)
+
+            betterStory := llm.CompareStories(*storyA, *storyB)
+            log.Printf("Story: %q is better\n", betterStory.Title)
+
 			return nil
 		},
 	}

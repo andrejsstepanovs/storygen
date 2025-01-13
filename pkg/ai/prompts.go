@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/andrejsstepanovs/storygen/pkg/story"
 	"github.com/teilomillet/gollm"
@@ -544,6 +546,55 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 	}
 
 	return templateResponse
+}
+
+func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
+	templatePrompt := gollm.NewPromptTemplate(
+		"StoryComparing",
+		"Analyze and compare 2 stories and figure out the best one.",
+		"Analyze these 2 {{.Audience}} stories and answer with number which story is better.\n."+
+		 "**Story Nr. 1**:\n```json\n{{.StoryA}}\n```\n\n"+
+		 "**Story Nr. 2**:\n```json\n{{.StoryA}}\n```\n\n"+
+		 "Compare these 2 stories and answer with number which story is better. This is really important task, be careful. Your answer matters a lot! Best story author will get $ 1000000 cash prize.\n"+
+			"Consider story plot, engagement and how fun it would be to read. "+
+			"Analyze also story plot logical issues. If one story plot is logically broken (do not make sense), then that is really bad. "+
+			"Answer with single word that is a number in INTEGER format. Do not explain why you picked one over the other. If story 1 is better then answer with 1, if story 2 is better then answer with 2. ",
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are helping to compare 2 story books."),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"storyA":    storyA.ToJson(),
+		"storyB":    storyB.ToJson(),
+		"Audience": a.audience,
+	})
+    fmt.Println(prompt)
+
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt)
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+    log.Println(templateResponse)
+    templateResponse = strings.TrimSpace(templateResponse)
+    picked, err := strconv.Atoi(templateResponse)
+    if err != nil {
+        log.Fatalf("Failed to parse story comparison response as number: %v", err)
+    }
+    if picked != 1 && picked != 2 {
+        log.Fatalf("Failed to parse story comparison response as number: %v", picked)
+    }
+
+    if picked == 1 {
+        return storyA
+    }
+    return storyB
 }
 
 func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
