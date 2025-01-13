@@ -425,7 +425,7 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 	return story.FindMoralesByName(picked)
 }
 
-func (a *AI) FigureStoryIdeas(count int, audience string) []string {
+func (a *AI) FigureStoryIdeas(count int) []string {
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryIdeasPicker",
 		"Come up with random story ideas.",
@@ -442,7 +442,7 @@ func (a *AI) FigureStoryIdeas(count int, audience string) []string {
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
 		"Count":    count,
-		"Audience": audience,
+		"Audience": a.audience,
 	})
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)

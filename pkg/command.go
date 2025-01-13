@@ -43,6 +43,7 @@ func NewCommand() (*cobra.Command, error) {
 		newGroomCommand(llm),
 		newStoryIdeasCommand(llm, audience),
 		newStoryCompareCommand(llm),
+		newStoryCompetitionCommand(llm),
 	)
 
 	return cmd, nil
@@ -63,7 +64,7 @@ func newStoryIdeasCommand(llm *ai.AI, audience string) *cobra.Command {
 				}
 			}
 
-			storyIdeas := llm.FigureStoryIdeas(l, audience)
+			storyIdeas := llm.FigureStoryIdeas(l)
 			log.Printf("Ideas: %d\n", len(storyIdeas))
 			for _, idea := range storyIdeas {
 				log.Printf("%s\n", idea)
@@ -86,6 +87,60 @@ func newStoryCompareCommand(llm *ai.AI) *cobra.Command {
 				log.Printf("Story: %q is better\n", betterStory.Title)
 				return nil
 			}
+
+			return nil
+		},
+	}
+}
+
+func newStoryCompetitionCommand(llm *ai.AI) *cobra.Command {
+	return &cobra.Command{
+		Use:   "competition",
+		Short: "Generates x stories and compares them to find the best one.",
+		RunE: func(_ *cobra.Command, args []string) error {
+			count := 10
+			if len(args) != 1 {
+				var err error
+				count, err = strconv.Atoi(args[0])
+				if err != nil {
+					log.Fatalln(err)
+				}
+			}
+			log.Printf("Generating %d stories...\n", count)
+			ideas := llm.FigureStoryIdeas(count)
+
+			stories := make([]story.Story, 0)
+			for _, idea := range ideas {
+				s := buildStory(llm, idea)
+				stories = append(stories, s)
+			}
+
+			score := make(map[string]int)
+			for i := 0; i < len(stories); i++ {
+				for j := i + 1; j < len(stories); j++ {
+					storyA := stories[i]
+					storyB := stories[j]
+					betterStory := llm.CompareStories(storyA, storyB)
+					if betterStory.Title == storyA.Title {
+						log.Printf("Story: %q is better\n", storyA.Title)
+						score[storyA.Title]++
+					} else {
+						log.Printf("Story: %q is better\n", storyB.Title)
+						score[storyB.Title]++
+					}
+				}
+			}
+			// find the best one
+			sort.Slice(stories, func(i, j int) bool {
+				return score[stories[i].Title] > score[stories[j].Title]
+			})
+
+			log.Printf("Best Story: %q\n", stories[0].Title)
+			file, _ := refineStory(llm, stories[0], 0)
+			log.Println("JSON saved")
+			log.Println(file)
+
+			ToVoice(stories[0], file, stories[0].BuildContent(story.TextChapter, story.TextTheEnd))
 
 			return nil
 		},
