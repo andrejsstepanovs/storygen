@@ -430,9 +430,9 @@ func (a *AI) FigureStoryIdeas(count int, audience string) []string {
 		"StoryIdeasPicker",
 		"Come up with random story ideas.",
 		"Create a list of {{.Count}} story ideas that will fit the {{.Audience}}\n"+
-		"Be creative and funny."+
-		ForceJson+"\n"+
-		"No yapping. Answer with a list of story ideas as strings (as simple array list with no key(s)) in JSON format.",
+			"Be creative and funny."+
+			ForceJson+"\n"+
+			"No yapping. Answer with a list of story ideas as strings (as simple array list with no key(s)) in JSON format.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("Answer only with the morale names in JSON array."),
@@ -553,9 +553,9 @@ func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
 		"StoryComparing",
 		"Analyze and compare 2 stories and figure out the best one.",
 		"Analyze these 2 {{.Audience}} stories and answer with number which story is better.\n."+
-		 "**Story Nr. 1**:\n```json\n{{.StoryA}}\n```\n\n"+
-		 "**Story Nr. 2**:\n```json\n{{.StoryA}}\n```\n\n"+
-		 "Compare these 2 stories and answer with number which story is better. This is really important task, be careful. Your answer matters a lot! Best story author will get $ 1000000 cash prize.\n"+
+			"**Story Nr. 1**:\n```json\n{{.StoryA}}\n```\n\n"+
+			"**Story Nr. 2**:\n```json\n{{.StoryA}}\n```\n\n"+
+			"Compare these 2 stories and answer with number which story is better. This is really important task, be careful. Your answer matters a lot! Best story author will get $ 1000000 cash prize.\n"+
 			"Consider story plot, engagement and how fun it would be to read. "+
 			"Analyze also story plot logical issues. If one story plot is logically broken (do not make sense), then that is really bad. "+
 			"Answer with single word that is a number in INTEGER format. Do not explain why you picked one over the other. If story 1 is better then answer with 1, if story 2 is better then answer with 2. ",
@@ -565,11 +565,10 @@ func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
 	)
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"storyA":    storyA.ToJson(),
-		"storyB":    storyB.ToJson(),
+		"StoryA":   storyA.ToJson(),
+		"StoryB":   storyB.ToJson(),
 		"Audience": a.audience,
 	})
-    fmt.Println(prompt)
 
 	if err != nil {
 		log.Fatalf("Failed to execute prompt template: %v", err)
@@ -581,20 +580,20 @@ func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-    log.Println(templateResponse)
-    templateResponse = strings.TrimSpace(templateResponse)
-    picked, err := strconv.Atoi(templateResponse)
-    if err != nil {
-        log.Fatalf("Failed to parse story comparison response as number: %v", err)
-    }
-    if picked != 1 && picked != 2 {
-        log.Fatalf("Failed to parse story comparison response as number: %v", picked)
-    }
+	log.Println(templateResponse)
+	templateResponse = strings.TrimSpace(templateResponse)
+	picked, err := strconv.Atoi(templateResponse)
+	if err != nil {
+		log.Fatalf("Failed to parse story comparison response as number: %v", err)
+	}
+	if picked != 1 && picked != 2 {
+		log.Fatalf("Failed to parse story comparison response as number: %v", picked)
+	}
 
-    if picked == 1 {
-        return storyA
-    }
-    return storyB
+	if picked == 1 {
+		return storyA
+	}
+	return storyB
 }
 
 func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
