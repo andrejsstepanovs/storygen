@@ -108,8 +108,8 @@ func newStoryCompetitionCommand(llm *ai.AI) *cobra.Command {
 			}
 			log.Printf("Generating %d stories...\n", count)
 			ideas := llm.FigureStoryIdeas(count)
-			for _, idea := range ideas {
-				log.Printf("Idea: %s\n", idea)
+			for i, idea := range ideas {
+				log.Printf("Idea: %d - %s\n", i+1, idea)
 			}
 
 			stories := make([]story.Story, 0)
