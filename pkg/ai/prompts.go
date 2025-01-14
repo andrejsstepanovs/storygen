@@ -168,9 +168,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 			"- Make sure you don't break out of suggestions that were fixed before (see json in: already_addressed_suggestions tags). "+
 			"- Answer with only one chapter text. We are fixing it one chapter at the time. "+
 			"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
-			//"- It is OK to extend the story if that is necessary to fix the plot. "+
 			"- Small text extensions are OK, but we should try to keep this chapter withing a limit of {{.Words}} words."+
-			"- "+ForceJson+"\n"+
 			ChapterPromptInstructions,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
