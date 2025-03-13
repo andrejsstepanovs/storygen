@@ -13,5 +13,6 @@ Define target audience and other params to generate a story you want.
 
 ```
 # run the app from terminal
-./storygen story create a story about blue dog and cat with big ears
+./storygen story create "a story about blue dog and cat with big ears"
+./storygen story create "about Raichu who learned that not all Pokemonds know how to use electricity"
 ```

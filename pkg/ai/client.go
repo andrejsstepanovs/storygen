@@ -27,7 +27,7 @@ func NewAI(audience string) (*AI, error) {
 	}
 
 	apiKey := ""
-	if provider != "ollama" {
+	if provider != "ollama" && provider != "lmstudio" {
 		keys := []string{
 			"ANTHROPIC_API_KEY",
 			"OPENAI_API_KEY",
@@ -82,12 +82,22 @@ func NewAI(audience string) (*AI, error) {
 		)
 	})
 
+	registry.Register("lmstudio", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
+		return NewCustomOpenAIProvider(
+			"lmstudio",
+			"http://localhost:1234/v1/chat/completions",
+			"lmstudio",
+			model,
+			extraHeaders,
+		)
+	})
+
 	cfg.Provider = provider
 	cfg.APIKeys = map[string]string{provider: apiKey}
 	cfg.Model = model
 	cfg.MaxTokens = 4096
 	cfg.MaxRetries = 30
-	cfg.Timeout = time.Minute * 2
+	cfg.Timeout = time.Minute * 30
 	cfg.RetryDelay = time.Second * 5
 	cfg.LogLevel = gollm.LogLevelInfo
 	conn, err := llm.NewLLM(cfg, utils.NewLogger(cfg.LogLevel), registry)

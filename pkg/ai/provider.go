@@ -3,6 +3,7 @@ package ai
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/teilomillet/gollm/config"
 	"github.com/teilomillet/gollm/providers"
@@ -273,7 +274,7 @@ func (p *CustomOpenAIProvider) ParseResponse(body []byte) (string, error) {
 
 	message := response.Choices[0].Message
 	if message.Content != "" {
-		return message.Content, nil
+		return p.filterThinkingTokens(message.Content), nil
 	}
 
 	if len(message.ToolCalls) > 0 {
@@ -336,4 +337,27 @@ func mustMarshal(v interface{}) []byte {
 func (p *CustomOpenAIProvider) SetExtraHeaders(extraHeaders map[string]string) {
 	p.extraHeaders = extraHeaders
 	p.logger.Debug("Extra headers set", "headers", extraHeaders)
+}
+
+func (p *CustomOpenAIProvider) filterThinkingTokens(content string) string {
+	p.logger.Debug("Filtering thinking tokens from response", "contentLength", len(content))
+	
+	// Find the last </think> tag
+	thinkEndPattern := "</think>"
+	lastThinkEndIndex := strings.LastIndex(content, thinkEndPattern)
+	
+	if lastThinkEndIndex != -1 {
+		// Get everything after the last </think> tag
+		filteredContent := content[lastThinkEndIndex+len(thinkEndPattern):]
+		// Remove any leading newlines or spaces
+		filteredContent = strings.TrimPrefix(filteredContent, "\n")
+		
+		p.logger.Debug("Thinking tokens filtered out", 
+			"originalLength", len(content), 
+			"filteredLength", len(filteredContent))
+		return filteredContent
+	}
+	
+	// If no thinking tokens are present, return the content as-is
+	return content
 }
