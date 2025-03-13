@@ -2,3 +2,5 @@ app.env
 .idea
 *.mp3
 *.json
+.aider*
+.env
