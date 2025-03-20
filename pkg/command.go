@@ -366,7 +366,7 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 
 			file, s = refineStory(llm, s, 0)
 
-			toLang := viper.GetString("STORYGEN_LANGUAGE")
+			toLang := strings.ToLower(viper.GetString("STORYGEN_LANGUAGE"))
 			if toLang == "" {
 				toLang = "english"
 			}
