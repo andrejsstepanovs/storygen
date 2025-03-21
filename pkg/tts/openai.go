@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func TextToSpeech(voice openai.SpeechVoice, dir, outputFilePath, textToSpeech, inbetweenFile string) error {
+func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile string) error {
 	files := make([]string, 0)
 	chunks := chunkText(textToSpeech, 2000)
 	for i, chunk := range chunks {
@@ -33,16 +33,18 @@ func TextToSpeech(voice openai.SpeechVoice, dir, outputFilePath, textToSpeech, i
 	return err
 }
 
-func openaiFile(voice openai.SpeechVoice, outputFilePath, textToSpeech string) error {
+func openaiFile(voice string, outputFilePath, textToSpeech string) error {
 	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
 	if speed == 0 {
 		speed = 0.9
 	}
+	//instructions := "Voice Affect: Fun, active, involved and engaged teacher voice reading a bedtime story to group of kids.\n\nTone: Sincere, empathetic, involved, engaged.\n\nPacing: Slow enough for kids to understand but realisticly faster when story picks up action.\n\nEmotion: Adopting to what is happening in the story.\n\nPauses: Big pause right before story chapter starts."
 	request := openai.CreateSpeechRequest{
-		Model:          openai.TTSModel1HD,
+		Model:          "gpt-4o-mini-tts",
 		ResponseFormat: openai.SpeechResponseFormatMp3,
-		Voice:          voice,
+		Voice:          openai.SpeechVoice(voice),
 		Input:          textToSpeech,
+		//Instructions:   instructions,
 		Speed:          speed,
 	}
 

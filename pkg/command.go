@@ -13,7 +13,6 @@ import (
 	"github.com/andrejsstepanovs/storygen/pkg/story"
 	"github.com/andrejsstepanovs/storygen/pkg/tts"
 	"github.com/andrejsstepanovs/storygen/pkg/utils"
-	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -291,7 +290,7 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			translated := *s
 			chapter := story.TextChapter
 			theEnd := story.TextTheEnd
-			toLang := viper.GetString("STORYGEN_LANGUAGE")
+			toLang := strings.ToLower(viper.GetString("STORYGEN_LANGUAGE"))
 			if toLang != "english" {
 				log.Printf("Translating to: %s", toLang)
 				translated, chapter, theEnd = translate(llm, *s, toLang)
@@ -392,10 +391,15 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 }
 
 func ToVoice(s story.Story, file, content string) {
-	soundFile := file[:len(file)-4] + "mp3"
-	toLang := viper.GetString("STORYGEN_TARGET_DIR")
+	soundFile := file + ".mp3"
+	lastDot := strings.LastIndex(file, ".")
+	if lastDot >= 0 {
+	    soundFile = file[:lastDot] + ".mp3"
+	}
+	targetDir := strings.ToLower(viper.GetString("STORYGEN_TARGET_DIR"))
 	log.Println("Text to Speech...")
-	err := tts.TextToSpeech(openai.VoiceShimmer, toLang, soundFile, content, inbetweenChaptersFile)
+	useVoice := viper.GetString("STORYGEN_VOICE")
+	err := tts.TextToSpeech(useVoice, targetDir, soundFile, content, inbetweenChaptersFile)
 	if err != nil {
 		log.Fatalln(err)
 	}
