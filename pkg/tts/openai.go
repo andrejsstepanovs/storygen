@@ -78,7 +78,7 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 			continue
 		}
 
-		chunks := chunkText(chapterText, 2000) // Adjust chunk size as needed
+		chunks := chunkText(chapterText, 1200)
 		for k, chunk := range chunks {
 			trimmedChunk := strings.TrimSpace(chunk)
 			trimmedChunk = strings.TrimLeft(trimmedChunk, "...")
@@ -86,12 +86,14 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 			if trimmedChunk == "" {
 				continue
 			}
+			trimmedChunk = strings.Replace(trimmedChunk, "\"", "`", -1)
+			trimmedChunk = strings.Replace(trimmedChunk, ",` ", "` ", -1) // maybe this is causing long pauses?
 
 			file := fmt.Sprintf("%d_%d_%s", n, k, outputFilePath) // n=segment index, k=chunk index
 			targetFile := path.Join(dir, file)
 
-			// fmt.Println("#################")
-			// fmt.Println(trimmedChunk)
+			fmt.Printf(">>> %s\n", targetFile)
+			fmt.Println(trimmedChunk)
 
 			err := openaiFile(voice, targetFile, trimmedChunk)
 			if err != nil {
@@ -100,6 +102,7 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 			files = append(files, targetFile)
 		}
 	}
+	//panic(1)
 
 	if len(files) == 0 {
 		fmt.Println("No audio files were generated.")
@@ -129,7 +132,7 @@ func openaiFile(voice string, outputFilePath, textToSpeech string) error {
 	}
 	//instructions := "Voice Affect: Fun, active, involved and engaged teacher voice reading a bedtime story to group of kids.\n\nTone: Sincere, empathetic, involved, engaged.\n\nPacing: Slow enough for kids to understand but realisticly faster when story picks up action.\n\nEmotion: Adopting to what is happening in the story.\n\nPauses: Big pause right before story chapter starts."
 	request := openai.CreateSpeechRequest{
-		Model:          "gpt-4o-mini-tts",
+		Model:          openai.SpeechModel(viper.GetString("STORYGEN_OPENAI_TTS_MODEL")),
 		ResponseFormat: openai.SpeechResponseFormatMp3,
 		Voice:          openai.SpeechVoice(voice),
 		Input:          textToSpeech,
