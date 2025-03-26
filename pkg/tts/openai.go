@@ -77,8 +77,14 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 		if chapterText == "" {
 			continue
 		}
+		splitLen := (len(chapterText) / 2) + 120
+		// for _, x := range chunkText(chapterText, splitLen) {
+		// 	fmt.Println("#######")
+		// 	fmt.Println(x)
+		// }
+		// panic(1)
 
-		chunks := chunkText(chapterText, 1200)
+		chunks := chunkText(chapterText, splitLen)
 		for k, chunk := range chunks {
 			trimmedChunk := strings.TrimSpace(chunk)
 			trimmedChunk = strings.TrimLeft(trimmedChunk, "...")
@@ -89,20 +95,25 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 			trimmedChunk = strings.Replace(trimmedChunk, "\"", "`", -1)
 			trimmedChunk = strings.Replace(trimmedChunk, ",` ", "` ", -1) // maybe this is causing long pauses?
 
+			lines := strings.Split(trimmedChunk, "\n")
+			cleanLines := make([]string, 0)
+			for _, line := range lines {
+				cleanLines = append(cleanLines, strings.TrimSpace(line))
+			}
+			cleanContent := strings.Join(cleanLines, "\n")
+
 			file := fmt.Sprintf("%d_%d_%s", n, k, outputFilePath) // n=segment index, k=chunk index
 			targetFile := path.Join(dir, file)
 
-			fmt.Printf(">>> %s\n", targetFile)
-			fmt.Println(trimmedChunk)
+			fmt.Printf(">>> %s\n%s\n<<<\n", targetFile, cleanContent)
 
-			err := openaiFile(voice, targetFile, trimmedChunk)
+			err := openaiFile(voice, targetFile, cleanContent)
 			if err != nil {
 				return fmt.Errorf("chunk processing failed for segment %d chunk %d: %w", n, k, err)
 			}
 			files = append(files, targetFile)
 		}
 	}
-	//panic(1)
 
 	if len(files) == 0 {
 		fmt.Println("No audio files were generated.")
