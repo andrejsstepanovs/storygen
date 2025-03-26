@@ -77,12 +77,8 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 		if chapterText == "" {
 			continue
 		}
-		splitLen := (len(chapterText) / 2) + 120
-		// for _, x := range chunkText(chapterText, splitLen) {
-		// 	fmt.Println("#######")
-		// 	fmt.Println(x)
-		// }
-		// panic(1)
+
+		splitLen := 99999
 
 		chunks := chunkText(chapterText, splitLen)
 		for k, chunk := range chunks {

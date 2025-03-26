@@ -123,6 +123,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
+	templateResponse = removeThinking(templateResponse)
 
 	var picked []story.Suggestion
 	err = json.Unmarshal([]byte(templateResponse), &picked)
@@ -198,7 +199,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryLogicalProblems(storyText string, loop, maxLoops int) story.Problems {
@@ -270,6 +271,7 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
+	templateResponse = removeThinking(templateResponse)
 
 	var picked []story.Problem
 	err = json.Unmarshal([]byte(templateResponse), &picked)
@@ -347,6 +349,7 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
+	templateResponse = removeThinking(templateResponse)
 
 	var picked []story.Protagonist
 	err = json.Unmarshal([]byte(templateResponse), &picked)
@@ -416,6 +419,8 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	templateResponse = removeThinking(templateResponse)
+
 	var picked []string
 	responseJson := templateResponse
 	if responseJson != "[]" {
@@ -462,6 +467,8 @@ func (a *AI) FigureStoryIdeas(count int) []string {
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
+
+	templateResponse = removeThinking(templateResponse)
 
 	var picked []string
 	responseJson := templateResponse
@@ -516,7 +523,7 @@ func (a *AI) FigureStoryVillain(storyEl story.Story) string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryPlan(storyEl story.Story) string {
@@ -556,7 +563,7 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
@@ -592,6 +599,7 @@ func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	templateResponse = removeThinking(templateResponse)
 	log.Println(templateResponse)
 	templateResponse = strings.TrimSpace(templateResponse)
 	picked, err := strconv.Atoi(templateResponse)
@@ -738,7 +746,7 @@ func (a *AI) FigureStorySummary(storyEl story.Story) string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryTitle(storyEl story.Story) string {
@@ -768,7 +776,7 @@ func (a *AI) FigureStoryTitle(storyEl story.Story) string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterTitle string, words int) string {
@@ -794,11 +802,11 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 	}
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Title":    chapterTitle,
-		"Number":   chapterNumber,
-		"Words":    words,
-		"Audience": a.audience,
+		"Story":         storyEl.ToJson(),
+		"Title":         chapterTitle,
+		"Number":        chapterNumber,
+		"Words":         words,
+		"Audience":      a.audience,
 		"ChapterIntent": chapterIntent,
 	})
 	if err != nil {
@@ -811,7 +819,7 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryLocation(storyEl story.Story) string {
@@ -851,7 +859,7 @@ func (a *AI) FigureStoryLocation(storyEl story.Story) string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	return templateResponse
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) TranslateSimpleText(englishText, toLanguage string) string {
@@ -919,8 +927,29 @@ func (a *AI) TranslateText(englishText, toLanguage string) string {
 }
 
 func cleanResponse(response string) string {
+	response = removeThinking(response)
 	response = strings.Replace(response, "“", "\"", -1)
 	response = strings.Replace(response, "”", "\"", -1)
 
 	return gollm.CleanResponse(response)
+}
+
+func removeThinking(response string) string {
+	lines := strings.Split(response, "\n")
+	clean := make([]string, 0)
+	inside := false
+	for _, line := range lines {
+		if strings.Contains(line, "<think>") {
+			inside = true
+			continue
+		}
+		if !inside {
+			clean = append(clean, line)
+		}
+		if strings.Contains(line, "</think>") {
+			inside = false
+		}
+	}
+
+	return strings.Join(clean, "\n")
 }
