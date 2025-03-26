@@ -1,6 +1,6 @@
 module github.com/andrejsstepanovs/storygen
 
-go 1.23.0
+go 1.24
 
 require (
 	github.com/hyacinthus/mp3join v0.0.0-20190710105654-d46eaeeb9552
