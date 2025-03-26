@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -13,37 +14,112 @@ import (
 	"github.com/spf13/viper"
 )
 
+func splitByChapters(text string) []string {
+	// Regex to find chapter markers for Chapter 2 and higher.
+	// (?:[2-9]|[1-9]\d+) matches 2-9 or any number 10 or greater.
+	re := regexp.MustCompile(`\n(?:...\n)?\s*Chapter (?:[2-9]|[1-9]\d+)\.`)
+
+	// Find the start indices of all Chapter 2+ markers.
+	indices := re.FindAllStringIndex(text, -1)
+
+	// If no markers for Chapter 2+ are found, the entire text is one chapter.
+	if len(indices) == 0 {
+		trimmedText := strings.TrimSpace(text)
+		if trimmedText == "" {
+			return []string{}
+		}
+		return []string{trimmedText}
+	}
+
+	chapters := []string{}
+	startIdx := 0 // Start of the current chapter slice
+
+	// Iterate through the found indices (which mark the START of Chapter 2, 3, etc.)
+	for _, indexPair := range indices {
+		// Get the text from the previous start up to the beginning of the current Chapter 2+ marker.
+		chapterText := text[startIdx:indexPair[0]]
+		trimmedChapter := strings.TrimSpace(chapterText)
+		if trimmedChapter != "" {
+			chapters = append(chapters, trimmedChapter)
+		}
+		// Update the start index for the next segment to be the beginning of the current marker.
+		startIdx = indexPair[0]
+	}
+
+	// Add the final segment (from the start of the last Chapter 2+ marker to the end of the text).
+	lastChapterText := text[startIdx:]
+	trimmedLastChapter := strings.TrimSpace(lastChapterText)
+	if trimmedLastChapter != "" {
+		chapters = append(chapters, trimmedLastChapter)
+	}
+
+	// Clean up any potential empty strings, although TrimSpace should handle most cases.
+	finalChapters := make([]string, 0, len(chapters))
+	for _, ch := range chapters {
+		if ch != "" {
+			finalChapters = append(finalChapters, ch)
+		}
+	}
+
+	return finalChapters
+}
 func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile string) error {
 	files := make([]string, 0)
-	//plitByText := "...\nChapter "
 
-	//chapterTexts := strings.Split(textToSpeech, plitByText)
-	chapterTexts := []string{textToSpeech}
+	chapterTexts := splitByChapters(textToSpeech)
+
+	if len(chapterTexts) == 0 {
+		fmt.Println("Input text resulted in zero chapters after splitting.")
+		return nil
+	}
 
 	for n, chapterText := range chapterTexts {
-		chunks := chunkText(chapterText, 2000) // 1000 = ~1min
-		for k, chunk := range chunks {
-			file := fmt.Sprintf("%d_%d_%s", n, k, outputFilePath)
-			targetFile := path.Join(dir, file)
-			txt := strings.TrimSpace(chunk)
+		if chapterText == "" {
+			continue
+		}
 
-			fmt.Println("#################")
-			fmt.Println(txt)
-			err := openaiFile(voice, targetFile, txt)
+		chunks := chunkText(chapterText, 2000) // Adjust chunk size as needed
+		for k, chunk := range chunks {
+			trimmedChunk := strings.TrimSpace(chunk)
+			trimmedChunk = strings.TrimLeft(trimmedChunk, "...")
+			trimmedChunk = strings.TrimSpace(trimmedChunk)
+			if trimmedChunk == "" {
+				continue
+			}
+
+			file := fmt.Sprintf("%d_%d_%s", n, k, outputFilePath) // n=segment index, k=chunk index
+			targetFile := path.Join(dir, file)
+
+			// fmt.Println("#################")
+			// fmt.Println(trimmedChunk)
+
+			err := openaiFile(voice, targetFile, trimmedChunk)
 			if err != nil {
-				return fmt.Errorf("chunk processing failed: %v", err)
+				return fmt.Errorf("chunk processing failed for segment %d chunk %d: %w", n, k, err)
 			}
 			files = append(files, targetFile)
 		}
 	}
-	panic(1)
 
-	err := JoinMp3Files(files, path.Join(dir, outputFilePath), inbetweenFile)
-	if err != nil {
-		return err
+	if len(files) == 0 {
+		fmt.Println("No audio files were generated.")
+		return fmt.Errorf("no audio files generated, cannot join")
 	}
 
-	return Remove(files)
+	fmt.Printf("\nJoining %d audio segments...\n", len(files))
+	err := JoinMp3Files(files, path.Join(dir, outputFilePath), inbetweenFile)
+	if err != nil {
+		return fmt.Errorf("failed to join MP3 files: %w", err)
+	}
+
+	fmt.Println("\nCleaning up temporary files...")
+	err = Remove(files)
+	if err != nil {
+		fmt.Printf("Warning: Failed to remove temporary files: %v\n", err)
+	}
+
+	fmt.Println("\nTextToSpeech process completed successfully.")
+	return nil
 }
 
 func openaiFile(voice string, outputFilePath, textToSpeech string) error {
