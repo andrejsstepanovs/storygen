@@ -1,16 +1,15 @@
 package tts
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"os"
+	"log"
+	"net/http"
 	"path"
 	"regexp"
 	"strings"
 	"unicode"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 	"github.com/spf13/viper"
 )
 
@@ -63,7 +62,32 @@ func splitByChapters(text string) []string {
 
 	return finalChapters
 }
+
+// Input of 2068 tokens is over the maximum input limit of 2000 tokens. Please shorten your input.
+func openaiFile(targetFile, textToSpeech string, openaiHandler *handlers.TTS) error {
+	file, err := openaiHandler.Convert(textToSpeech, targetFile)
+	if err != nil {
+		return err
+	}
+
+	log.Println(file)
+	return nil
+}
+
 func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile string) error {
+	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
+	if speed == 0 {
+		speed = 0.9
+	}
+	openaiHandler := &handlers.TTS{
+		APIKey:       viper.GetString("OPENAI_API_KEY"),
+		Model:        viper.GetString("STORYGEN_OPENAI_TTS_MODEL"),
+		Voice:        viper.GetString("STORYGEN_VOICE"),
+		Instructions: "Voice Affect: Fun, active, involved and engaged teacher voice reading a bedtime story to group of kids.\n\nTone: Sincere, empathetic, involved, engaged.\n\nPacing: Slow enough for kids to understand but realisticly faster when story picks up action.\n\nEmotion: Adopting to what is happening in the story.\n\nPauses: Big pause right before story chapter starts.",
+		Speed:        speed,
+		Client:       &http.Client{},
+	}
+
 	files := make([]string, 0)
 
 	chapterTexts := splitByChapters(textToSpeech)
@@ -88,8 +112,6 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 			if trimmedChunk == "" {
 				continue
 			}
-			trimmedChunk = strings.Replace(trimmedChunk, "\"", "`", -1)
-			trimmedChunk = strings.Replace(trimmedChunk, ",` ", "` ", -1) // maybe this is causing long pauses?
 
 			lines := strings.Split(trimmedChunk, "\n")
 			cleanLines := make([]string, 0)
@@ -103,10 +125,11 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 
 			fmt.Printf(">>> %s\n%s\n<<<\n", targetFile, cleanContent)
 
-			err := openaiFile(voice, targetFile, cleanContent)
+			err := openaiFile(targetFile, cleanContent, openaiHandler)
 			if err != nil {
 				return fmt.Errorf("chunk processing failed for segment %d chunk %d: %w", n, k, err)
 			}
+
 			files = append(files, targetFile)
 		}
 	}
@@ -130,36 +153,6 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 
 	fmt.Println("\nTextToSpeech process completed successfully.")
 	return nil
-}
-
-func openaiFile(voice string, outputFilePath, textToSpeech string) error {
-	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
-	if speed == 0 {
-		speed = 0.9
-	}
-	//instructions := "Voice Affect: Fun, active, involved and engaged teacher voice reading a bedtime story to group of kids.\n\nTone: Sincere, empathetic, involved, engaged.\n\nPacing: Slow enough for kids to understand but realisticly faster when story picks up action.\n\nEmotion: Adopting to what is happening in the story.\n\nPauses: Big pause right before story chapter starts."
-	request := openai.CreateSpeechRequest{
-		Model:          openai.SpeechModel(viper.GetString("STORYGEN_OPENAI_TTS_MODEL")),
-		ResponseFormat: openai.SpeechResponseFormatMp3,
-		Voice:          openai.SpeechVoice(voice),
-		Input:          textToSpeech,
-		//Instructions:   instructions,
-		Speed: speed,
-	}
-
-	c := openai.NewClient(viper.GetString("OPENAI_API_KEY"))
-	resp, err := c.CreateSpeech(context.Background(), request)
-	if err != nil {
-		fmt.Printf("Speech generation error: %v\n", err)
-		return err
-	}
-	defer resp.Close()
-
-	buf, err := io.ReadAll(resp)
-
-	err = os.WriteFile(outputFilePath, buf, 0644)
-
-	return err
 }
 
 // isQuote checks if a rune is a quotation mark (supporting various types).
