@@ -97,12 +97,11 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 		return nil
 	}
 
+	splitLen := 1100
 	for n, chapterText := range chapterTexts {
 		if chapterText == "" {
 			continue
 		}
-
-		splitLen := 99999
 
 		chunks := chunkText(chapterText, splitLen)
 		for k, chunk := range chunks {
@@ -140,7 +139,8 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 	}
 
 	fmt.Printf("\nJoining %d audio segments...\n", len(files))
-	err := JoinMp3Files(files, path.Join(dir, outputFilePath), inbetweenFile)
+	finalFile := path.Join(dir, outputFilePath)
+	err := JoinMp3Files(files, finalFile, inbetweenFile)
 	if err != nil {
 		return fmt.Errorf("failed to join MP3 files: %w", err)
 	}
@@ -152,6 +152,12 @@ func TextToSpeech(voice string, dir, outputFilePath, textToSpeech, inbetweenFile
 	}
 
 	fmt.Println("\nTextToSpeech process completed successfully.")
+
+	// todo. if we want to build bigger mp3 file chunks it comes with annoying silence pauses coming from openai.
+	// this command is removing the silences with post processing
+	// alternative is to keep chunks (splitLen) short
+	//cmd := fmt.Sprintf("ffmpeg -i %s -af silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB %s", finalFile, "clean_"+finalFile)
+
 	return nil
 }
 
