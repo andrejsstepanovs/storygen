@@ -56,7 +56,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 
 			fmt.Printf(">>> %s\n%s\n<<<\n", targetFile, cleanContent)
 
-			err := openaiHandler.Convert(textToSpeech, targetFile)
+			err := openaiHandler.Convert(cleanContent, targetFile)
 			if err != nil {
 				return err
 			}
