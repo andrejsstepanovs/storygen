@@ -43,6 +43,8 @@ type TimePeriod struct {
 type Protagonists []Protagonist
 
 type Protagonist struct {
+	Name   string `json:"name"`
+	Voice  string `json:"voice"`
 	Type   string `json:"type"`
 	Gender string `json:"gender"`
 	Size   string `json:"size"`
@@ -57,6 +59,7 @@ type Story struct {
 	Morales         Morales      `json:"morales"`
 	Protagonists    Protagonists `json:"protagonists"`
 	Villain         string       `json:"villain"`
+	VillainVoice    string       `json:"villain_voice"`
 	Plan            string       `json:"plan"`
 	Location        string       `json:"location"`
 	Summary         string       `json:"summary"`
@@ -100,6 +103,24 @@ func (p *Protagonists) ToJson() string {
 }
 func (p *Protagonist) ToJson() string {
 	return utils.ToJsonStr(p)
+}
+
+func (p *Protagonists) String() string {
+	instr := make([]string, 0)
+	for _, protagonist := range *p {
+		txt := fmt.Sprintf(
+			"# Named %q\n- Type: %s\n- Gender: %s\n- Size: %s\n- Age: %s\n- Voice: %s\n",
+			protagonist.Name,
+			protagonist.Type,
+			protagonist.Gender,
+			protagonist.Size,
+			protagonist.Age,
+			protagonist.Voice,
+		)
+		instr = append(instr, txt)
+	}
+
+	return fmt.Sprintf("# Protagonists:\n%s", strings.Join(instr, "\n"))
 }
 
 func normalizeForComparison(s string) string {

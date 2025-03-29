@@ -399,7 +399,30 @@ func ToVoice(s story.Story, file, content string) {
 	targetDir := strings.ToLower(viper.GetString("STORYGEN_TARGET_DIR"))
 	log.Println("Text to Speech...")
 
-	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile)
+	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
+	if speed == 0 {
+		speed = 0.9
+	}
+
+	voice := story.Voice{
+		Provider: story.VoiceProvider{
+			Provider: "openai",
+			APIKey:   viper.GetString("OPENAI_API_KEY"),
+			Model:    viper.GetString("STORYGEN_OPENAI_TTS_MODEL"),
+			Voice:    viper.GetString("STORYGEN_VOICE"),
+			Speed:    speed,
+		},
+		Instruction: story.VoiceInstruction{
+			Affect:  viper.GetString("STORYGEN_VOICE_AFFECT"),
+			Tone:    viper.GetString("STORYGEN_VOICE_TONE"),
+			Pacing:  viper.GetString("STORYGEN_VOICE_PACING"),
+			Emotion: viper.GetString("STORYGEN_VOICE_EMOTION"),
+			Pauses:  viper.GetString("STORYGEN_VOICE_PAUSES"),
+			Story:   s,
+		},
+	}
+
+	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile, voice)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -475,15 +498,14 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 
 	log.Println("Protagonists...")
 	s.Protagonists = llm.FigureStoryProtagonists(s)
-	protagonists := make([]string, 0)
-	for _, p := range s.Protagonists {
-		protagonists = append(protagonists, fmt.Sprintf("%s %s %s %s", p.Size, p.Age, p.Gender, p.Type))
-	}
-	log.Printf("Protagonists (%d):\n - %s", len(s.Protagonists), strings.Join(protagonists, "\n - "))
+	log.Printf("Protagonists (%d):\n - %s", len(s.Protagonists), s.Protagonists.String())
 
 	log.Println("Villain...")
 	s.Villain = llm.FigureStoryVillain(s)
-	log.Printf("%s\n", s.Villain)
+	log.Printf("Villain: %s\n", s.Villain)
+
+	s.VillainVoice = llm.FigureStoryVillainVoice(s)
+	log.Printf("Voice: %s\n", s.VillainVoice)
 
 	log.Println("Location...")
 	s.Location = llm.FigureStoryLocation(s)

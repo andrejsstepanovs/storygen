@@ -6,21 +6,17 @@ import (
 	"path"
 	"strings"
 
+	"github.com/andrejsstepanovs/storygen/pkg/story"
 	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
-	"github.com/spf13/viper"
 )
 
-func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string) error {
-	speed := viper.GetFloat64("STORYGEN_SPEECH_SPEED")
-	if speed == 0 {
-		speed = 0.9
-	}
+func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice story.Voice) error {
 	openaiHandler := &handlers.TTS{
-		APIKey:       viper.GetString("OPENAI_API_KEY"),
-		Model:        viper.GetString("STORYGEN_OPENAI_TTS_MODEL"),
-		Voice:        viper.GetString("STORYGEN_VOICE"),
-		Instructions: "Voice Affect: Fun, active, involved and engaged teacher voice reading a bedtime story to group of kids.\n\nTone: Sincere, empathetic, involved, engaged.\n\nPacing: Slow enough for kids to understand but realisticly faster when story picks up action.\n\nEmotion: Adopting to what is happening in the story.\n\nPauses: Big pause right before story chapter starts.",
-		Speed:        speed,
+		APIKey:       voice.Provider.APIKey,
+		Model:        voice.Provider.Model,
+		Voice:        voice.Provider.Voice,
+		Instructions: voice.Instruction.String(),
+		Speed:        voice.Provider.Speed,
 		Client:       &http.Client{},
 	}
 

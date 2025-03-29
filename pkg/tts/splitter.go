@@ -1,12 +1,9 @@
 package tts
 
 import (
-	"log"
 	"regexp"
 	"strings"
 	"unicode"
-
-	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 )
 
 func splitByChapters(text string) []string {

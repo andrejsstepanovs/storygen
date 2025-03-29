@@ -303,16 +303,8 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 
 func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	examples := func(count int) string {
-		moraleExamples := story.GetRandomTimePeriods(count)
-		names := make([]string, 0)
-		for _, m := range moraleExamples {
-			names = append(names, m.Name)
-		}
-		jsonResp, err := json.Marshal(names)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		return string(jsonResp)
+		p := story.GetRandomProtagonists(count)
+		return p.ToJson()
 	}
 
 	templatePrompt := gollm.NewPromptTemplate(
@@ -323,14 +315,15 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 			"Be mindful about how many you are picking. "+
 			"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
 			"Your task now is to pick from the list.\n"+
+			"Pick good simple but memorable protagonist names.\n"+
 			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting."+
-			"Don't specify protagonists sexual orientations, that type of info is mostly irelevant in {{.Audience}} storys.\n"+
+			"Don't specify protagonists sexual orientations, that type of info is mostly irrelevant in {{.Audience}} stories.\n"+
 			GeneralInstruction+" "+ForceJson+"\n",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
 			gollm.WithOutput("JSON of protagonist elements (as array) in JSON format. Use only protagonists from the list that was provided."),
-			gollm.WithOutput("Answer only JSON array with columns 'type', 'gender', 'size', 'age'. All parameters must be string (also age is string). No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
-			gollm.WithExamples(examples(2)),
+			gollm.WithOutput("Answer only JSON array with columns 'type', 'gender', 'size', 'age', 'name', 'voice'. All parameters must be string (also age is string). No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
+			gollm.WithExamples(examples(5)),
 		),
 	)
 
@@ -483,6 +476,36 @@ func (a *AI) FigureStoryIdeas(count int) []string {
 	}
 
 	return picked
+}
+
+func (a *AI) FigureStoryVillainVoice(storyEl story.Story) string {
+	templatePrompt := gollm.NewPromptTemplate(
+		"VillainVoiceGenerator",
+		"Analyze a story and come up with a villain voice.",
+		"Create Villain voice. How it sounds, what are the intricate details of how he/she/them talk."+
+			"This is Villain description: {{.Villain}} in a story:\n```json\n{{.Story}}\n```\n\n"+
+			GeneralInstruction,
+		gollm.WithPromptOptions(
+			gollm.WithContext("You are helping to prepare a story book. Now working on picking story villain voice."),
+			gollm.WithOutput("Short clear description of how the villain(s) talk. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) voice description."),
+		),
+	)
+
+	prompt, err := templatePrompt.Execute(map[string]interface{}{
+		"Story":   storyEl.ToJson(),
+		"Villain": storyEl.Villain,
+	})
+	if err != nil {
+		log.Fatalf("Failed to execute prompt template: %v", err)
+	}
+
+	ctx := context.Background()
+	templateResponse, err := a.client.Generate(ctx, prompt)
+	if err != nil {
+		log.Fatalf("Failed to generate template response: %v", err)
+	}
+
+	return removeThinking(templateResponse)
 }
 
 func (a *AI) FigureStoryVillain(storyEl story.Story) string {
