@@ -19,7 +19,7 @@ type TTS struct {
 	Client       *http.Client
 }
 
-func (o *TTS) Convert(text, fileName string) (string, error) {
+func (o *TTS) Convert(text, fileName string) error {
 	reqBodyMap := map[string]interface{}{
 		"model": o.Model,
 		"input": text,
@@ -34,13 +34,13 @@ func (o *TTS) Convert(text, fileName string) (string, error) {
 
 	reqBodyBytes, err := json.Marshal(reqBodyMap)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request body: %w", err)
+		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/speech", bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
 		// Wrap error with context
-		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -48,7 +48,7 @@ func (o *TTS) Convert(text, fileName string) (string, error) {
 
 	resp, err := o.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute HTTP request: %w", err)
+		return fmt.Errorf("failed to execute HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -58,19 +58,19 @@ func (o *TTS) Convert(text, fileName string) (string, error) {
 		errorBodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
 			log.Printf("Failed to read error response body: %v\n", readErr)
-			return "", fmt.Errorf("API request failed with status %d, and could not read error response body: %w", resp.StatusCode, readErr)
+			return fmt.Errorf("API request failed with status %d, and could not read error response body: %w", resp.StatusCode, readErr)
 		}
 
 		log.Printf("API error response body: %s\n", string(errorBodyBytes)) // Log the specific error from OpenAI
 
-		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(errorBodyBytes))
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(errorBodyBytes))
 	}
 
 	// --- Only proceed if status code is 200 OK ---
 
 	audioFile, err := os.Create(fileName)
 	if err != nil {
-		return "", fmt.Errorf("failed to create audio file %q: %w", fileName, err)
+		return fmt.Errorf("failed to create audio file %q: %w", fileName, err)
 	}
 
 	var closeFileErr error
@@ -85,14 +85,14 @@ func (o *TTS) Convert(text, fileName string) (string, error) {
 	bytesCopied, err := io.Copy(audioFile, resp.Body)
 	if err != nil {
 		_ = os.Remove(fileName)
-		return "", fmt.Errorf("failed to write audio data to file %q: %w", fileName, err)
+		return fmt.Errorf("failed to write audio data to file %q: %w", fileName, err)
 	}
 	log.Printf("Copied %d bytes\n", bytesCopied)
 
 	if closeFileErr != nil {
 		_ = os.Remove(fileName)
-		return "", closeFileErr
+		return closeFileErr
 	}
 
-	return fileName, nil
+	return nil
 }

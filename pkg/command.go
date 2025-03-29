@@ -394,12 +394,12 @@ func ToVoice(s story.Story, file, content string) {
 	soundFile := file + ".mp3"
 	lastDot := strings.LastIndex(file, ".")
 	if lastDot >= 0 {
-	    soundFile = file[:lastDot] + ".mp3"
+		soundFile = file[:lastDot] + ".mp3"
 	}
 	targetDir := strings.ToLower(viper.GetString("STORYGEN_TARGET_DIR"))
 	log.Println("Text to Speech...")
-	useVoice := viper.GetString("STORYGEN_VOICE")
-	err := tts.TextToSpeech(useVoice, targetDir, soundFile, content, inbetweenChaptersFile)
+
+	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile)
 	if err != nil {
 		log.Fatalln(err)
 	}
