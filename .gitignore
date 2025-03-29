@@ -4,3 +4,4 @@ app.env
 *.json
 .aider*
 .env
+build/
