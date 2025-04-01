@@ -45,9 +45,6 @@ func GetChapterCountAndLength() (int, int, string) {
 	if chapterCount == 0 {
 		chapterCount = int(minutes.Minutes() / 1.9)
 	}
-	if chapterCount < 3 {
-		chapterCount = 3
-	}
 	log.Printf("Chapter count: %d\n", chapterCount)
 
 	maxChapterWords := (readSpeedWordsInMinute * int(minutes.Minutes())) / chapterCount

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -98,7 +97,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 			return fmt.Errorf("failed to post-process silence removal: %w", err)
 		}
 		fmt.Printf("Cleaned file saved as: %s\n", cleanFile)
-		os.Remove(finalFile)
+		//os.Remove(finalFile)
 	}
 
 	return nil
@@ -109,7 +108,7 @@ func postProcessSilenceRemoval(inputFile, outputFile string) error {
 	cmd := exec.Command(
 		"ffmpeg",
 		"-i", inputFile,
-		"-af", "silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB",
+		"-af", "silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-60dB",
 		"-c:a", "libmp3lame", "-q:a", "0",
 		outputFile,
 	)
