@@ -1,8 +1,11 @@
 package tts
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -10,7 +13,7 @@ import (
 	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 )
 
-func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice story.Voice) error {
+func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice story.Voice, postProcess bool) error {
 	openaiHandler := &handlers.TTS{
 		APIKey:       voice.Provider.APIKey,
 		Model:        voice.Provider.Model,
@@ -85,10 +88,41 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 
 	fmt.Println("\nTextToSpeech process completed successfully.")
 
-	// todo. if we want to build bigger mp3 file chunks it comes with annoying silence pauses coming from openai.
-	// this command is removing the silences with post processing
-	// alternative is to keep chunks (splitLen) short
-	//cmd := fmt.Sprintf("ffmpeg -i %s -af silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB %s", finalFile, "clean_"+finalFile)
+	// OpenAI creates big pauses and silences in files.
+	// Tried everything to remove them, but no luck.
+	// So, we are using ffmpeg to remove them.
+	if postProcess {
+		cleanFile := path.Join(dir, "clean_"+outputFilePath)
+		err = postProcessSilenceRemoval(finalFile, cleanFile)
+		if err != nil {
+			return fmt.Errorf("failed to post-process silence removal: %w", err)
+		}
+		fmt.Printf("Cleaned file saved as: %s\n", cleanFile)
+		os.Remove(finalFile)
+	}
+
+	return nil
+}
+
+func postProcessSilenceRemoval(inputFile, outputFile string) error {
+	// Create the command with proper argument separation
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", inputFile,
+		"-af", "silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB",
+		"-c:a", "libmp3lame", "-q:a", "0",
+		outputFile,
+	)
+
+	// Capture both stdout and stderr
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Run the command
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to execute FFmpeg command: %v\nOutput: %s", err, stderr.String())
+	}
 
 	return nil
 }

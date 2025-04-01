@@ -172,16 +172,19 @@ func newGroomCommand(llm *ai.AI) *cobra.Command {
 }
 
 func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Story) {
+	tmpDir := viper.GetString("STORYGEN_TMP_DIR")
+
+	preReadLoops = viper.GetInt("STORYGEN_PREREAD_LOOPS")
 	if preReadLoops == 0 {
-		preReadLoops = viper.GetInt("STORYGEN_PREREAD_LOOPS")
-		if preReadLoops == 0 {
-			preReadLoops = 3
+		file, err := utils.SaveTextToFile(tmpDir, "final_"+s.Title, "json", s.ToJson())
+		if err != nil {
+			log.Fatalln(err)
 		}
+		return file, s
 	}
 
 	chapterCount, maxChapterWords, _ := utils.GetChapterCountAndLength()
 	chapterWords := utils.ChapterWordCount(chapterCount, maxChapterWords)
-	tmpDir := viper.GetString("STORYGEN_TMP_DIR")
 
 	allAddressedSuggestions := make(story.Suggestions, 0)
 	for i := 1; i <= preReadLoops; i++ {
@@ -422,7 +425,8 @@ func ToVoice(s story.Story, file, content string) {
 		},
 	}
 
-	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile, voice)
+	postProcess := viper.GetBool("STORYGEN_TTS_POSTPROCESS")
+	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile, voice, postProcess)
 	if err != nil {
 		log.Fatalln(err)
 	}
