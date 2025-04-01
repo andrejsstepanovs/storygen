@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -97,7 +98,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 			return fmt.Errorf("failed to post-process silence removal: %w", err)
 		}
 		fmt.Printf("Cleaned file saved as: %s\n", cleanFile)
-		//os.Remove(finalFile)
+		os.Remove(finalFile)
 	}
 
 	return nil
