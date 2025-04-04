@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/andrejsstepanovs/storygen/pkg/story"
 	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
@@ -15,12 +16,15 @@ import (
 
 func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool) error {
 	openaiHandler := &handlers.TTS{
-		APIKey:       voice.Provider.APIKey,
-		Model:        voice.Provider.Model,
-		Voice:        voice.Provider.Voice,
-		Instructions: voice.Instruction.String(),
-		Speed:        voice.Provider.Speed,
-		Client:       &http.Client{},
+		APIKey:          voice.Provider.APIKey,
+		Model:           voice.Provider.Model,
+		Voice:           voice.Provider.Voice,
+		Instructions:    voice.Instruction.String(),
+		Speed:           voice.Provider.Speed,
+		Client:          &http.Client{},
+		MaxRetries:      3,               // Retry up to 3 times
+		RetryDelay:      2 * time.Second, // Start with 2 seconds delay
+		RetryMultiplier: 1.5,             // Increase delay by 50% each retry
 	}
 
 	files := make([]string, 0)
