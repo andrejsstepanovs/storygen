@@ -13,7 +13,7 @@ import (
 	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 )
 
-func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice story.Voice, postProcess bool) error {
+func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool) error {
 	openaiHandler := &handlers.TTS{
 		APIKey:       voice.Provider.APIKey,
 		Model:        voice.Provider.Model,
@@ -32,7 +32,6 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 		return nil
 	}
 
-	splitLen := 1100
 	for n, chapterText := range chapterTexts {
 		if chapterText == "" {
 			continue
@@ -75,7 +74,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech, inbetweenFile string, voice
 
 	fmt.Printf("\nJoining %d audio segments...\n", len(files))
 	finalFile := path.Join(dir, outputFilePath)
-	err := JoinMp3Files(files, finalFile, inbetweenFile)
+	err := JoinMp3Files(files, finalFile, "")
 	if err != nil {
 		return fmt.Errorf("failed to join MP3 files: %w", err)
 	}

@@ -17,8 +17,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const inbetweenChaptersFile = ""
-
 func NewCommand() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "story",
@@ -426,7 +424,8 @@ func ToVoice(s story.Story, file, content string) {
 	}
 
 	postProcess := viper.GetBool("STORYGEN_TTS_POSTPROCESS")
-	err := tts.TextToSpeech(targetDir, soundFile, content, inbetweenChaptersFile, voice, postProcess)
+	splitLen := viper.GetInt("STORYGEN_TTS_SPLITLEN")
+	err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess)
 	if err != nil {
 		log.Fatalln(err)
 	}
