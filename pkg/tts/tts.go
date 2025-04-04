@@ -14,7 +14,7 @@ import (
 	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 )
 
-func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool) error {
+func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool) (string, error) {
 	openaiHandler := &handlers.TTS{
 		APIKey:          voice.Provider.APIKey,
 		Model:           voice.Provider.Model,
@@ -33,7 +33,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 
 	if len(chapterTexts) == 0 {
 		fmt.Println("Input text resulted in zero chapters after splitting.")
-		return nil
+		return "", nil
 	}
 
 	for n, chapterText := range chapterTexts {
@@ -64,7 +64,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 
 			err := openaiHandler.Convert(cleanContent, targetFile)
 			if err != nil {
-				return err
+				return "", err
 			}
 
 			files = append(files, targetFile)
@@ -73,14 +73,14 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 
 	if len(files) == 0 {
 		fmt.Println("No audio files were generated.")
-		return fmt.Errorf("no audio files generated, cannot join")
+		return "", fmt.Errorf("no audio files generated, cannot join")
 	}
 
 	fmt.Printf("\nJoining %d audio segments...\n", len(files))
 	finalFile := path.Join(dir, outputFilePath)
 	err := JoinMp3Files(files, finalFile, "")
 	if err != nil {
-		return fmt.Errorf("failed to join MP3 files: %w", err)
+		return "", fmt.Errorf("failed to join MP3 files: %w", err)
 	}
 
 	fmt.Println("\nCleaning up temporary files...")
@@ -98,13 +98,15 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 		cleanFile := path.Join(dir, "clean_"+outputFilePath)
 		err = postProcessSilenceRemoval(finalFile, cleanFile)
 		if err != nil {
-			return fmt.Errorf("failed to post-process silence removal: %w", err)
+			return "", fmt.Errorf("failed to post-process silence removal: %w", err)
 		}
 		fmt.Printf("Cleaned file saved as: %s\n", cleanFile)
 		os.Remove(finalFile)
+
+		return cleanFile, nil
 	}
 
-	return nil
+	return finalFile, nil
 }
 
 func postProcessSilenceRemoval(inputFile, outputFile string) error {

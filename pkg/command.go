@@ -425,7 +425,7 @@ func ToVoice(s story.Story, file, content string) {
 
 	postProcess := viper.GetBool("STORYGEN_TTS_POSTPROCESS")
 	splitLen := viper.GetInt("STORYGEN_TTS_SPLITLEN")
-	err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess)
+	finalSoundFile, err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -435,7 +435,7 @@ func ToVoice(s story.Story, file, content string) {
 	log.Printf("Story: %s\n", s.Title)
 	log.Printf("Summary: %s\n\n", s.Summary)
 	log.Printf("json: %s\n", file)
-	log.Printf("mp3: %s\n", soundFile)
+	log.Printf("mp3: %s\n", finalSoundFile)
 }
 
 func translate(llm *ai.AI, s story.Story, toLang string) (story.Story, string, string) {
