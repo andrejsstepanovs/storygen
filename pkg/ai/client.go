@@ -35,6 +35,7 @@ func NewAI(audience string) (*AI, error) {
 			"OPENROUTER_API_KEY",
 			"MISTRAL_API_KEY",
 			"GOOGLE_API_KEY",
+			"GROQ_API_KEY",
 		}
 		for _, key := range keys {
 			if !strings.Contains(strings.ToLower(key), strings.ToLower(provider)) {
@@ -87,6 +88,16 @@ func NewAI(audience string) (*AI, error) {
 		return NewCustomOpenAIProvider(
 			"google",
 			"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+			apiKey,
+			model,
+			extraHeaders,
+		)
+	})
+
+	registry.Register("groq", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
+		return NewCustomOpenAIProvider(
+			"groq",
+			"https://api.groq.com/openai/v1/chat/completions",
 			apiKey,
 			model,
 			extraHeaders,

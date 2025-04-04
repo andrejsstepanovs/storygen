@@ -66,6 +66,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 			if err != nil {
 				return "", err
 			}
+			time.Sleep(time.Second * 1) // desperate try to fix openai broken responses. looks like its working!
 
 			files = append(files, targetFile)
 		}
