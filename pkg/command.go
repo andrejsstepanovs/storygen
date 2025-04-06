@@ -238,6 +238,9 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 			//}
 		}
 		log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
+		if len(totalSuggestions) == 0 {
+			break
+		}
 
 		// sort chapterSuggestions by key
 		keys := make([]int, 0, len(chapterSuggestions))
