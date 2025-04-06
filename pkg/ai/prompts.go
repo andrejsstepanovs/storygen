@@ -418,6 +418,7 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 	responseJson := templateResponse
 	if responseJson != "[]" {
 		responseJson = cleanResponse(templateResponse)
+		responseJson = cleanResponse(responseJson)
 		err = json.Unmarshal([]byte(responseJson), &picked)
 		if err != nil {
 			log.Println(templateResponse)
