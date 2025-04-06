@@ -277,6 +277,7 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
 		responseJson := cleanResponse(templateResponse)
+		responseJson = cleanResponse(responseJson)
 		if responseJson != "[]" {
 			err = json.Unmarshal([]byte(templateResponse), &picked)
 			if err != nil {
