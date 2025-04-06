@@ -85,7 +85,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 			"For reference, here is full Story until chapter \n```json\n{{.StoryChapters}}\n```\n. "+
 			"Already addressed suggestions that you should ignore \n```json\n{{.AddressedSuggestions}}\n```\n. "+
 			"There are maybe more chapters but lets focus on story until this moment. "+
-			"Think about what needs to be changed in what chapter before re-writing."+
+			"Think about what needs to be changed in what chapter and answer in great detail how to fix it (within given story chapter and with minimal text alterations)."+
 			"# Instructions:"+
 			"- Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions).\n"+
 			"- Don't challenge (and keep) the {{.Audience}} story writing style.\n"+
@@ -129,6 +129,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
 		responseJson := cleanResponse(templateResponse)
+		responseJson = cleanResponse(responseJson)
 		if responseJson != "[]" {
 			log.Println("Failed to parse JSON. Trying again")
 			err = json.Unmarshal([]byte(responseJson), &picked)
@@ -244,7 +245,8 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n"+
 			"<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
 			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
-			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter."+
+			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter. "+
+			"Order response with most obvious issues on top. "+
 			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n"+
 			GeneralInstruction+" "+ForceJson+"\n"+
 			"If no flaws are found, do not include the chapter in your output. "+promptExend,
