@@ -517,7 +517,10 @@ func buildStory(llm *ai.AI, suggestion string) story.Story {
 	log.Println("Summary...")
 	s.Summary = llm.FigureStorySummary(s)
 	log.Println("Chapter Titles...")
-	chapterTitles := llm.FigureStoryChapterTitles(s, chapterCount)
+	chapterTitles, err := llm.FigureStoryChapterTitles(s, chapterCount)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	log.Printf("Built (%d) Chapters", len(chapterTitles))
 
 	for i, title := range chapterTitles {

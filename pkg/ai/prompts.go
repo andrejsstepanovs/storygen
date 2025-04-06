@@ -525,10 +525,10 @@ func (a *AI) FigureStoryVillain(storyEl story.Story) string {
 			"that we can work with in the story.\n"+
 			GeneralInstruction+"\n"+
 			"By the way, villain can also be elements of nature or unmovable objects and that kind of stuff. "+
-			"Depends on the story we're building. Be creative if possible.",
+			"Depends on the story we're building. Be creative if possible. Answer with plain text.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are helping to prepare a story book. Villain that you are building (writing) will be used later on when story itself will be written."),
-			gollm.WithOutput("Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) description."),
+			gollm.WithOutput("Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) description in plain text."),
 		),
 	)
 
@@ -697,7 +697,7 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 	return story.FindTimePeriodsByName(picked)[0]
 }
 
-func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []string {
+func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) ([]string, error) {
 	templatePrompt := gollm.NewPromptTemplate(
 		"StoryChapterTitleCreator",
 		"Create a story chapter titles.",
@@ -720,26 +720,27 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) []s
 		"Audience": a.audience,
 	})
 	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+		return []string{}, fmt.Errorf("failed to execute prompt template: %v", err)
 	}
 
 	ctx := context.Background()
 	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
 	if err != nil {
-		log.Fatalf("Failed to generate template response: %v", err)
+		return []string{}, fmt.Errorf("failed to generate template response: %v", err)
 	}
 
 	responseJson := cleanResponse(templateResponse)
+	responseJson = cleanResponse(responseJson)
 
 	var picked []string
 	err = json.Unmarshal([]byte(responseJson), &picked)
 	if err != nil {
 		fmt.Println(templateResponse)
 		fmt.Println(responseJson)
-		log.Fatalf("Failed to parse chapters response as JSON: %v", err)
+		return []string{}, fmt.Errorf("failed to parse time period response as JSON: %v", err)
 	}
 
-	return picked
+	return picked, nil
 }
 
 func (a *AI) FigureStorySummary(storyEl story.Story) string {
