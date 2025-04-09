@@ -91,7 +91,8 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 			"- Don't challenge (and keep) the {{.Audience}} story writing style.\n"+
 			"- Story writing style was already predefined and we are sticking with it.\n"+
 			"- You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
-			"- Dont be overly pedantic. It's just a {{.Audience}} story after all.\n"+
+			"- Focus on fixing the most illogical or problematic aspects of this {{.Audience}} story first. Avoid being overly pedantic - perfection isn’t the goal here. Address major inconsistencies, plot holes, or pacing issues before tackling smaller details. Only suggest minor improvements (and sparingly) once the bigger issues are resolved.\n"+
+			"- Keep feedback practical and audience-appropriate.\n"+
 			"- Be creative with suggestions to fix issues at hand.\n"+
 			"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
 			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
