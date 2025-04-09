@@ -568,6 +568,7 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 			"Write the plan in a way that the writer later on will not be much constrained with. We want to keep story plan loose and flexible (no details). "+
 			"Be creative and make sure that this {{.Audience}} story is moving forward fast so it is engaging and fun to read. "+
 			"Plan a story in a way where there are no boring parts and plot is moving forward fast. "+
+			"Don't forget to include ending to the story you're planning so there is satisfying conclusions is built into the story properly. "+
 			"Consider adding some plot twists and funny interactions between characters.\n"+
 			GeneralInstruction,
 		gollm.WithPromptOptions(
@@ -707,7 +708,7 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) ([]
 		"Create a story chapter titles.",
 		"Create a list of story chapter titles that will be used for this {{.Audience}} story:\n```json\n{{.Story}}\n```\n\n"+
 			"Make sure that chapter titles align with existing story details. "+
-			"Take into consideration Story Suggestion. "+
+			"Take into consideration Story Suggestion. Make sure that story have a clear ending. "+
 			"Be mindful about the chapter count so it aligns good with story length. Usually there is no need for more than {{.Count}} chapters. "+
 			"Write chapter titles in a way that the plot is naturally moving forward and is aligned with defined {{.Audience}} story structure requirements.\n"+
 			GeneralInstruction+" "+ForceJson,
@@ -826,7 +827,8 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 	isLast := len(storyEl.Chapters) == chapterNumber
 	chapterIntent := "to proceed the storyline"
 	if isLast {
-		chapterIntent = "to finish the story with satisfying ending"
+		chapterIntent = "to finish the story with satisfying ending. " +
+			"This is the last chapter of the story so make sure that you end open story topics and end them with good conclusions."
 	}
 
 	prompt, err := templatePrompt.Execute(map[string]interface{}{
