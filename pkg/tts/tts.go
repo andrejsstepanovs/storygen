@@ -96,8 +96,14 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 	// Tried everything to remove them, but no luck.
 	// So, we are using ffmpeg to remove them.
 	if postProcess {
+		unnoisedFile := path.Join(dir, "unnoised_"+outputFilePath)
+		err = postProcessNoiseRemoval(finalFile, unnoisedFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to post-process noise removal: %w", err)
+		}
+
 		cleanFile := path.Join(dir, "clean_"+outputFilePath)
-		err = postProcessSilenceRemoval(finalFile, cleanFile)
+		err = postProcessSilenceRemoval(unnoisedFile, cleanFile)
 		if err != nil {
 			return "", fmt.Errorf("failed to post-process silence removal: %w", err)
 		}
@@ -108,6 +114,28 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 	}
 
 	return finalFile, nil
+}
+
+func postProcessNoiseRemoval(inputFile, outputFile string) error {
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", inputFile,
+		"-af", "compand=attacks=0:decays=0.7:points=-80/-80|-6/-6|-2/-80",
+		"-c:a", "libmp3lame", "-q:a", "0",
+		outputFile,
+	)
+
+	// Capture both stdout and stderr
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Run the command
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to execute FFmpeg command: %v\nOutput: %s", err, stderr.String())
+	}
+
+	return nil
 }
 
 func postProcessSilenceRemoval(inputFile, outputFile string) error {
