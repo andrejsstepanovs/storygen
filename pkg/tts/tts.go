@@ -109,6 +109,7 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 		}
 		fmt.Printf("Cleaned file saved as: %s\n", cleanFile)
 		os.Remove(finalFile)
+		os.Remove(unnoisedFile)
 
 		return cleanFile, nil
 	}
