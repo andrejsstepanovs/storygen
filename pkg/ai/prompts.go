@@ -24,7 +24,8 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Ensure the chapter aligns with the story's structure, timeline, themes, protagonist, villain, and overall plan.\n" +
 	"- Take into consideration Story Suggestion.\n" +
 	"- Write it using funny interactions between characters.\n" +
-	"- Move plot forward without diving into surrounding details. " +
+	"- Move plot forward without diving into surrounding details.\n" +
+	"- Use minimal amount of adjectives.\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
