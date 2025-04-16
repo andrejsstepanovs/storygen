@@ -26,6 +26,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Write it using funny interactions between characters.\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
 	"- Use minimal amount of adjectives.\n" +
+	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
