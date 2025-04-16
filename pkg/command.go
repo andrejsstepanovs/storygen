@@ -207,18 +207,21 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		for _, problem := range problems {
 			log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)
 			for _, c := range s.Chapters {
-				if c.Number == problem.Chapter {
-					log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
-					suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
-					log.Printf("Suggestions: %d", len(suggestions))
-					for _, sug := range suggestions {
-						allSuggestions = append(allSuggestions, sug)
-					}
+				if c.Number != problem.Chapter {
+					continue
 				}
+				log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
+				suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
+				if len(suggestions) == 0 {
+					log.Printf("Nothing wrong")
+					continue
+				}
+				log.Printf("Suggestions: %d", len(suggestions))
+				allSuggestions = append(allSuggestions, suggestions...)
 			}
 		}
 
-		log.Printf("Found problems: %d\n", len(problems))
+		log.Printf("Found problems: %d with %d suggestions\n", len(problems), len(allSuggestions))
 		chapterSuggestions := make(map[int]story.Suggestions)
 		for _, sug := range allSuggestions {
 			chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
