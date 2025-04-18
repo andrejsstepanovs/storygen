@@ -820,6 +820,7 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 			"**This is the {{.Audience}} story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
 			"You need to write a chapter: \"{{.Number}}) - {{.Title}}\" content (text) {{.ChapterIntent}} "+
 			"Chapter should be written (should fit within) with approximately {{.Words}} words.\n"+
+			"Take your time to think about well-crafted chapter that fits the plot, enhances the narrative, and makes logical sense.\n"+
 			GeneralInstruction+"\n"+ChapterPromptInstructions+"\nAnswer with chapter content text.",
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are writing a story book chapter by chapter. Expand the story with one chapter."),
