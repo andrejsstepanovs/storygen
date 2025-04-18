@@ -27,6 +27,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
+	"- Identify the speaker before the quote.\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
@@ -817,7 +818,7 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 		"Analyze story data and write a single chapter for it.",
 		"Write the single full chapter text, ensuring it flows naturally and keeps the reader engaged. "+
 			"**This is the {{.Audience}} story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"You need to write a chapter: \"{{.Number}}) - {{.Title}}\" content (text) {{.ChapterIntent}}. "+
+			"You need to write a chapter: \"{{.Number}}) - {{.Title}}\" content (text) {{.ChapterIntent}} "+
 			"Chapter should be written (should fit within) with approximately {{.Words}} words.\n"+
 			GeneralInstruction+"\n"+ChapterPromptInstructions+"\nAnswer with chapter content text.",
 		gollm.WithPromptOptions(
@@ -828,7 +829,7 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 	)
 
 	isLast := len(storyEl.Chapters) == chapterNumber
-	chapterIntent := "to proceed the storyline"
+	chapterIntent := "to proceed the storyline."
 	if isLast {
 		chapterIntent = "to finish the story with satisfying ending. " +
 			"This is the last chapter of the story so make sure that you end open story topics and end them with good conclusions."
