@@ -186,10 +186,8 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 
 	allAddressedSuggestions := make(story.Suggestions, 0)
 	for i := 1; i <= preReadLoops; i++ {
-		log.Printf("Pre-reading / story fixing loop: %d...\n", i)
+		log.Printf("## Pre-reading / story fixing loop: %d...\n", i)
 		text := s.BuildContent(story.TextChapter, story.TextTheEnd)
-
-		//utils.SaveTextToFile(tmpDir, strconv.Itoa(i)+"_groomed_text_"+s.Title, "txt", text)
 
 		problems := llm.FigureStoryLogicalProblems(text, i, preReadLoops)
 		if len(problems) == 0 {
@@ -218,10 +216,8 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 				log.Printf("Suggesting fix suggestions for: %d. %s...", problem.Chapter, problem.ChapterName)
 				suggestions := llm.SuggestStoryFixes(s, problem, allAddressedSuggestions)
 				if len(suggestions) == 0 {
-					log.Printf("Nothing wrong")
 					continue
 				}
-				log.Printf("Suggestions: %d", len(suggestions))
 				allSuggestions = append(allSuggestions, suggestions...)
 			}
 		}
@@ -231,24 +227,6 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		for _, sug := range allSuggestions {
 			chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
 		}
-		totalSuggestions := make([]string, 0)
-		for _, suggestions := range chapterSuggestions {
-			w := make([]string, 0)
-			for _, sug := range suggestions {
-				for _, k := range sug.Suggestions {
-					w = append(w, k)
-					totalSuggestions = append(totalSuggestions, k)
-				}
-			}
-			//log.Printf("Chapter %d suggestions (%d):", chapter, len(w))
-			//for _, txt := range w {
-			//	log.Printf(" - %s", txt)
-			//}
-		}
-		log.Printf("# Total Suggestions Points: %d", len(totalSuggestions))
-		if len(totalSuggestions) == 0 {
-			break
-		}
 
 		// sort chapterSuggestions by key
 		keys := make([]int, 0, len(chapterSuggestions))
@@ -257,21 +235,19 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		}
 		sort.Ints(keys)
 
-		log.Println("Fixing...")
+		log.Println("Fixing...") // todo: fix - this is too complex and probably buggy
 		for _, chapter := range keys {
-			suggestions := chapterSuggestions[chapter]
 			for _, problem := range problems {
 				if problem.Chapter == chapter {
 					for j, c := range s.Chapters {
 						if c.Number == problem.Chapter {
+							suggestions := chapterSuggestions[chapter]
 							log.Printf("Adjusting chapter %d. %q with %d suggestions (%d)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
 							wordCount := chapterWords[problem.Chapter]
 							fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
 							s.Chapters[j].Text = fixedChapter
-							break
 						}
 					}
-					break
 				}
 			}
 		}

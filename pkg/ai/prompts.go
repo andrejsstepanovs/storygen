@@ -248,10 +248,9 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 		"Pre read the story and figure out the logical issues.",
 		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n"+
 			"<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
-			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples. "+
-			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter. "+
-			"Order response with most obvious issues on top. "+
-			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n"+
+			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples.\n"+
+			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter.\n"+
+			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n\n"+
 			GeneralInstruction+" "+ForceJson+"\n"+
 			"If no flaws are found, do not include the chapter in your output. "+promptExend,
 		gollm.WithPromptOptions(
