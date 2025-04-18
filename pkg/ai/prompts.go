@@ -30,7 +30,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Always place speaker name before quoting what they say. \n" +
 	"-- Example: Max said \"That's amazing!\" NOT \"That's amazing!\" Max said.\n" +
 	"-- Example: Johnny insisted \"I don't believe you\" NOT \"I don't believe you,\" Johnny insisted.\n" +
-	"Tell what happened and what happened next moving plot forward.\n\n" +
+	"- Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
 	"While they add great imagery, they can feel repetitive if overused. " +

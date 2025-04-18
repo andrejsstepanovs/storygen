@@ -206,7 +206,9 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 			return problems[i].Chapter < problems[j].Chapter
 		})
 
+		chapterSuggestions := make(map[int]story.Suggestions)
 		allSuggestions := make(story.Suggestions, 0)
+		totalSuggestions := 0
 		for _, problem := range problems {
 			log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)
 			for _, c := range s.Chapters {
@@ -219,14 +221,18 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 					continue
 				}
 				allSuggestions = append(allSuggestions, suggestions...)
+				for _, sug := range suggestions {
+					_, ok := chapterSuggestions[sug.Chapter]
+					if !ok {
+						chapterSuggestions[sug.Chapter] = make(story.Suggestions, 0)
+					}
+					chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
+					totalSuggestions++
+				}
 			}
 		}
 
-		log.Printf("Found problems: %d with %d suggestions\n", len(problems), len(allSuggestions))
-		chapterSuggestions := make(map[int]story.Suggestions)
-		for _, sug := range allSuggestions {
-			chapterSuggestions[sug.Chapter] = append(chapterSuggestions[sug.Chapter], sug)
-		}
+		log.Printf("Found problems: %d with %d suggestions\n", len(problems), totalSuggestions)
 
 		// sort chapterSuggestions by key
 		keys := make([]int, 0, len(chapterSuggestions))
@@ -237,16 +243,22 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 
 		log.Println("Fixing...") // todo: fix - this is too complex and probably buggy
 		for _, chapter := range keys {
-			for _, problem := range problems {
-				if problem.Chapter == chapter {
+			for suggestionChapter, suggestions := range chapterSuggestions {
+				if suggestionChapter != chapter {
+					continue
+				}
+				for _, problem := range problems {
+					if problem.Chapter != chapter {
+						continue
+					}
 					for j, c := range s.Chapters {
-						if c.Number == problem.Chapter {
-							suggestions := chapterSuggestions[chapter]
-							log.Printf("Adjusting chapter %d. %q with %d suggestions (%d)...", problem.Chapter, problem.ChapterName, len(suggestions), suggestions.Count())
-							wordCount := chapterWords[problem.Chapter]
-							fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
-							s.Chapters[j].Text = fixedChapter
+						if c.Number != chapter {
+							continue
 						}
+						log.Printf("Adjusting chapter %d with suggestions (%d)...", chapter, suggestions.Count())
+						wordCount := chapterWords[chapter]
+						fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
+						s.Chapters[j].Text = fixedChapter
 					}
 				}
 			}
