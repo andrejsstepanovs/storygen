@@ -27,7 +27,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
-	"- Identify the speaker before the quote.\n" +
+	"- Identify the speaker before the quote (Example 1: Max looked at him and said 'That is amazing!' Example 2: Johny insisted 'I still dont believe you' he said.).\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
@@ -317,8 +317,7 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	templatePrompt := gollm.NewPromptTemplate(
 		"ProtagonistsPicker",
 		"Pick protagonists that will be a good fit for the given story.",
-		"Create a JSON protagonists list that will fit the {{.Audience}} story we will write:\n```json\n{{.Story}}\n```\n\n"+
-			"Pick protagonist elements from of available protagonists elements:\n```\njson{{.Protagonists}}\n```\n"+
+		"Create a JSON protagonists list that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
 			"Be mindful about how many you are picking. "+
 			"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
 			"Your task now is to pick from the list.\n"+
@@ -350,6 +349,7 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 	templateResponse = removeThinking(templateResponse)
+	templateResponse = cleanResponse(templateResponse)
 
 	var picked []story.Protagonist
 	err = json.Unmarshal([]byte(templateResponse), &picked)
@@ -391,7 +391,7 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 	templatePrompt := gollm.NewPromptTemplate(
 		"MoralesPicker",
 		"Pick all morales that will be a good fit for the given story.",
-		"Create a list of morale names that will fit the {{.Audience}} story we will write:\n```json\n{{.Story}}\n```\n\n"+
+		"Create a list of morale names that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
 			"Pick morales (`name`) from list of available morales:\n```\njson{{.Morales}}\n```"+
 			"Be flexible with your picks. We want creative choices for exciting story.\n"+
 			"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.\n"+
@@ -665,7 +665,7 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 	templatePrompt := gollm.NewPromptTemplate(
 		"TimePeriodPicker",
 		"Pick time periods that will be a good fit for the given story.",
-		"Create a list of time periods that will fit the {{.Audience}} story we will write:\n```json\n{{.Story}}\n```\n\n"+
+		"Create a list of time periods that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
 			"Pick time periods (`name`) from list of available time periods:\n```\njson{{.TimePeriods}}\n```"+
 			"Be flexible with your picks. We want a vibrant, exciting story and time period is important and needs to be suitable and interesting. "+GeneralInstruction+" "+ForceJson,
 		gollm.WithPromptOptions(
