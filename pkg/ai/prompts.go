@@ -135,12 +135,12 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 	if err != nil {
 		responseJson := cleanResponse(templateResponse)
 		if responseJson != "[]" {
-			log.Println("Failed to parse JSON. Trying again")
 			err = json.Unmarshal([]byte(responseJson), &picked)
 			if err != nil {
 				responseJson = fmt.Sprintf("[%s]", responseJson)
 				err = json.Unmarshal([]byte(responseJson), &picked)
 				if err != nil {
+					log.Println("Failed to parse JSON. Trying again")
 					log.Println(templateResponse)
 					log.Println("cleaned:", responseJson)
 					return story.Suggestions{}, templateResponse, err
@@ -354,13 +354,13 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 	var picked []story.Protagonist
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
-		log.Println("Failed to parse JSON. Trying again")
 		responseJson := cleanResponse(templateResponse)
 		err = json.Unmarshal([]byte(templateResponse), &picked)
 		if err != nil {
 			responseJson = fmt.Sprintf("[%s]", responseJson)
 			err = json.Unmarshal([]byte(responseJson), &picked)
 			if err != nil {
+				log.Println("Failed to parse JSON. Trying again")
 				log.Println(templateResponse)
 				log.Println("cleaned:", responseJson)
 				log.Fatalf("Failed to parse time protagonists as JSON: %v", err)
