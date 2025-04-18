@@ -128,12 +128,12 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 	templateResponse = removeThinking(templateResponse)
+	templateResponse = cleanResponse(templateResponse)
 
 	var picked []story.Suggestion
 	err = json.Unmarshal([]byte(templateResponse), &picked)
 	if err != nil {
 		responseJson := cleanResponse(templateResponse)
-		responseJson = cleanResponse(responseJson)
 		if responseJson != "[]" {
 			log.Println("Failed to parse JSON. Trying again")
 			err = json.Unmarshal([]byte(responseJson), &picked)
