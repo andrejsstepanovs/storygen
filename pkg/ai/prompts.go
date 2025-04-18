@@ -101,6 +101,7 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 			"- Be creative with suggestions to fix issues at hand.\n"+
 			"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
 			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
+			"- Come up with 5 or less suggestions (0 is all feels good enough).\n"+
 			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n\n"+
 			"# Answer:\n"+
 			"- "+ForceJson+" "+GeneralInstruction+"\n"+
@@ -165,7 +166,7 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 		"StoryChapterFixer",
 		"There are issues in this story chapter. Re-write the chapter and fix all mentioned problems",
 		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. "+
-			"Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
+			//"Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
 			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
 			"Here are all already addressed suggestions: \n<already_addressed_suggestions>\n{{.AddressedSuggestions}}\n</already_addressed_suggestions>\n"+
 			"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n{{.Suggestions}}\n</fix_suggestions>\n"+
