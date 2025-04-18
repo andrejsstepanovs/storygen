@@ -27,7 +27,9 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
-	"- Identify the speaker before the quote (Example 1: Max looked at him and said 'That is amazing!' Example 2: Johny insisted 'I still dont believe you' he said.).\n" +
+	"- Always place speaker names before quotes. \n" +
+	"-- Example: Max said \"That's amazing!\" NOT \"That's amazing!\" Max said.\n" +
+	"-- Example: Johnny insisted \"I don't believe you\" NOT \"I don't believe you,\" Johnny insisted.\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
 	"# Writing style Adjustments:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
