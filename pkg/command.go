@@ -203,6 +203,11 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 		}
 		log.Printf("Found problems in %s chapters\n", c)
 
+		// sort problems so first problem is for chapter 1 and last one is for last chapter
+		sort.Slice(problems, func(i, j int) bool {
+			return problems[i].Chapter < problems[j].Chapter
+		})
+
 		allSuggestions := make(story.Suggestions, 0)
 		for _, problem := range problems {
 			log.Printf("Finding suggestions how to fix chapter %d...", problem.Chapter)

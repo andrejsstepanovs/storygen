@@ -84,9 +84,9 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		"Our story auditor (pre-reader) found issues in story chapter. Pick what story chapters (chapter number) need to be re-written and suggest how to do it.",
 		"Analyze the {{.Audience}} story chapter {{.ChapterNumber}} {{.ChapterName}} issues:\n"+
 			"<issues>\n{{.Issues}}\n</issues>\n\n"+
-			"Analyze full {{.Audience}} story and adjust pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
-			"For reference, here is full Story until chapter \n```json\n{{.StoryChapters}}\n```\n. "+
-			"Already addressed suggestions that you should ignore \n```json\n{{.AddressedSuggestions}}\n```\n. "+
+			"Here is our story until {{.ChapterNumber}} chapter: \n```json\n{{.StoryChapters}}\n```\n. "+
+			"Analyze this \"{{.Audience}}\" story and pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
+			"<ignore_known_suggestions>\n```json\n{{.AddressedSuggestions}}\n```</ignore_known_suggestions>\n"+
 			"There are maybe more chapters but lets focus on story until this moment. "+
 			"Think about what needs to be changed in what chapter and answer in great detail how to fix it (within given story chapter and with minimal text alterations)."+
 			"# Instructions:"+
@@ -99,8 +99,8 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 			"- Be creative with suggestions to fix issues at hand.\n"+
 			"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
 			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
-			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n"+
-			"# Answer:"+
+			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n\n"+
+			"# Answer:\n"+
 			"- "+ForceJson+" "+GeneralInstruction+"\n"+
 			"- Return empty JSON array (`[]`) if there is nothing important to fix. "+problemInjsonTxt,
 		gollm.WithPromptOptions(

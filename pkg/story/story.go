@@ -52,7 +52,7 @@ type Protagonist struct {
 }
 
 type Story struct {
-	StorySuggestion string       `json:"story_suggestion"`
+	StorySuggestion string       `json:"story_prompt"`
 	Structure       Structure    `json:"structure"`
 	TimePeriod      TimePeriod   `json:"time_period"`
 	Length          string       `json:"length"`
