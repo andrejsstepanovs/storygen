@@ -27,7 +27,7 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
-	"- Always place speaker names before quotes. \n" +
+	"- Always place speaker name before quoting what they say. \n" +
 	"-- Example: Max said \"That's amazing!\" NOT \"That's amazing!\" Max said.\n" +
 	"-- Example: Johnny insisted \"I don't believe you\" NOT \"I don't believe you,\" Johnny insisted.\n" +
 	"Tell what happened and what happened next moving plot forward.\n\n" +
