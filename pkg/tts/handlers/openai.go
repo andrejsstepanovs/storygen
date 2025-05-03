@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -43,37 +42,10 @@ func (o *TTS) Convert(text, fileName string) error {
 
 		lastErr = err
 
-		// Only retry on server errors (5xx)
-		if !isServerError(err) {
-			return err // Don't retry client errors or other issues
-		}
-
 		log.Printf("Request failed (attempt %d/%d): %v", attempt+1, retries, err)
 	}
 
 	return fmt.Errorf("all %d conversion attempts failed, last error: %w", retries+1, lastErr)
-}
-
-// isServerError checks if the error is due to a server error (5xx)
-func isServerError(err error) bool {
-	// Check if the error is a statusCodeError or wraps a statusCodeError
-	var statusErr *statusCodeError
-	if errors.As(err, &statusErr) {
-		// Server errors are 5xx status codes
-		return statusErr.StatusCode >= 500 && statusErr.StatusCode < 600
-	}
-
-	// Fallback: check error message for status codes
-	// This is less reliable but helps with errors that weren't properly typed
-	errStr := err.Error()
-	for _, code := range []string{"500", "502", "503", "504"} {
-		if len(errStr) >= len(code) && (errStr[:len(code)] == code ||
-			(len(errStr) > len(code)+2 && errStr[len(errStr)-len(code)-2:len(errStr)-2] == code)) {
-			return true
-		}
-	}
-
-	return false
 }
 
 type statusCodeError struct {
