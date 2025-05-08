@@ -444,14 +444,19 @@ func translate(llm *ai.AI, s story.Story, toLang string) (story.Story, string, s
 
 	log.Printf("Translating Title %s ...\n", s.Title)
 	translated.Title = llm.TranslateText(s.Title, toLang)
-	log.Printf("Translated Title %s ...\n", translated.Title)
+	log.Printf("Translated Title %q\n", translated.Title)
 
 	for _, c := range s.Chapters {
 		log.Printf("Translating Chapter %d - %s ...\n", c.Number, c.Title)
+		translatedTitle := llm.TranslateSimpleText(c.Title, toLang)
+		log.Printf("Translated Chapter Title %q\n", translatedTitle)
+		translatedText := llm.TranslateText(c.Text, toLang)
+		log.Printf("Translated Chapter Text %q\n", translatedText)
+
 		translated.Chapters = append(translated.Chapters, story.Chapter{
 			Number: c.Number,
-			Title:  llm.TranslateSimpleText(c.Title, toLang),
-			Text:   llm.TranslateText(c.Text, toLang),
+			Title:  translatedTitle,
+			Text:   translatedText,
 		})
 	}
 

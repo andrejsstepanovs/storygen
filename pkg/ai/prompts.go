@@ -933,9 +933,8 @@ func (a *AI) TranslateText(englishText, toLanguage string) string {
 		fmt.Sprintf("Analyze given English language text and provide good translation in **%s** language).", toLanguage),
 		"Inspect given English text carefully and provide good translation. **This is the text you need to translate**:\n```\n{{.Text}}\n```\n\n"+
 			"Translate from English to {{.Language}}.\n"+
-			"Maintain the feeling and vibe of the original text. "+
-			"Target audience is {{.Audience}} so translate accordingly. "+
-			"{{.Audience}} should be able to easily understand the translation. "+
+			"Maintain the feeling and vibe of the original text.\n"+
+			"Target audience is \"{{.Audience}}\", so translate accordingly to match it in a way that target audience are able to easily understand the translation.\n"+
 			"Keep original text newlines as is.\n"+GeneralInstruction,
 		gollm.WithPromptOptions(
 			gollm.WithContext("You are translating single chapter for a story book."),
