@@ -258,7 +258,9 @@ func refineStory(llm *ai.AI, s story.Story, preReadLoops int) (string, story.Sto
 						log.Printf("Adjusting chapter %d with suggestions (%d)...", chapter, suggestions.Count())
 						wordCount := chapterWords[chapter]
 						fixedChapter := llm.AdjustStoryChapter(s, problem, suggestions, allAddressedSuggestions, wordCount)
-						s.Chapters[j].Text = fixedChapter
+						if fixedChapter != "" {
+							s.Chapters[j].Text = fixedChapter
+						}
 					}
 				}
 			}
