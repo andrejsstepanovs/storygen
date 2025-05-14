@@ -49,6 +49,8 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Introduce Simultaneous Actions\n" +
 	"-- Instead of: 'She heard the noise and then she turned around'\n" +
 	"-- Try: 'Hearing the noise, she turned around'\n" +
+	"- Connect Settings to Characters: make locations matter to your characters\n" +
+	"- Be Specific About Location, Time and Weather\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
 	"- Always place speaker name before quoting what they say. \n" +
