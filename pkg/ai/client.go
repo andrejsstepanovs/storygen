@@ -27,7 +27,7 @@ func NewAI(audience string) (*AI, error) {
 	}
 
 	apiKey := ""
-	if provider != "ollama" && provider != "lmstudio" {
+	if provider != "ollama" && provider != "lmstudio" && provider != "litellm" {
 		keys := []string{
 			"ANTHROPIC_API_KEY",
 			"OPENAI_API_KEY",
@@ -109,6 +109,16 @@ func NewAI(audience string) (*AI, error) {
 			"lmstudio",
 			"http://localhost:1234/v1/chat/completions",
 			"lmstudio",
+			model,
+			extraHeaders,
+		)
+	})
+
+	registry.Register("litellm", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
+		return NewCustomOpenAIProvider(
+			"litellm",
+			"http://localhost:4000/v1/chat/completions",
+			"sk-1234",
 			model,
 			extraHeaders,
 		)

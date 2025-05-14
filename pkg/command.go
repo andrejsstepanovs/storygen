@@ -293,10 +293,10 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			chapter := story.TextChapter
 			theEnd := story.TextTheEnd
 			toLang := strings.ToLower(viper.GetString("STORYGEN_LANGUAGE"))
-			if toLang != "english" {
-				log.Printf("Translating to: %s", toLang)
-				translated, chapter, theEnd = translate(llm, *s, toLang)
-			}
+			//if toLang != "english" {
+			//	log.Printf("Translating to: %s", toLang)
+			//	translated, chapter, theEnd = translate(llm, *s, toLang)
+			//}
 
 			soundFile := file[:len(file)-4] + "mp3"
 			ToVoice(translated, toLang+"_"+soundFile, translated.BuildContent(chapter, theEnd))
