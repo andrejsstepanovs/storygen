@@ -25,6 +25,30 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"- Take into consideration Story Suggestion.\n" +
 	"- Write it using funny interactions between characters.\n" +
 	"- Move plot forward without diving into surrounding details.\n" +
+	"- Use Time-Related Transitions:\n" +
+	"-- Instead of 'and then,' try:\n" +
+	"-- After that\n" +
+	"-- Meanwhile\n" +
+	"-- Later\n" +
+	"-- Shortly afterward\n" +
+	"-- Moments later\n" +
+	"-- Subsequently\n" +
+	"-- In the meantime\n" +
+	"- Use Cause-and-Effect Connections:\n" +
+	"-- As a result\n" +
+	"-- Consequently\n" +
+	"-- Therefore\n" +
+	"-- This led to\n" +
+	"-- Because of this\n" +
+	"- Replace with Action Verbs:\n" +
+	"-- Instead of: 'She opened the door and then walked inside'\n" +
+	"-- Try: 'She opened the door, stepping cautiously inside'\n" +
+	"- Use Subordinate Clauses:\n" +
+	"-- Instead of: 'He finished his homework and then he went to play'\n" +
+	"-- Try: 'After finishing his homework, he went to play'\n" +
+	"- Introduce Simultaneous Actions\n" +
+	"-- Instead of: 'She heard the noise and then she turned around'\n" +
+	"-- Try: 'Hearing the noise, she turned around'\n" +
 	"- Use minimal amount of adjectives.\n" +
 	"- Restrain yourself from using cliché things like 'Whispering Woods', 'misty meadow', etc.\n" +
 	"- Always place speaker name before quoting what they say. \n" +
