@@ -320,7 +320,7 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 				if err != nil {
 					log.Println(templateResponse)
 					log.Println("cleaned:", responseJson)
-					return story.Problems{}, templateResponse, err
+					return story.Problems{}, templateResponse, fmt.Errorf("failed to parse JSON for found problems response: %v", err)
 				}
 			}
 		}
