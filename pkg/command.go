@@ -428,6 +428,7 @@ func ToVoice(s story.Story, file, content string) {
 	splitLen := viper.GetInt("STORYGEN_TTS_SPLITLEN")
 	finalSoundFile, err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess)
 	if err != nil {
+		log.Printf("Error during Text to Speech: %v\n", err)
 		log.Fatalln(err)
 	}
 
