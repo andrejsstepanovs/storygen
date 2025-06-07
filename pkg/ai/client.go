@@ -128,7 +128,7 @@ func NewAI(audience string) (*AI, error) {
 	cfg.APIKeys = map[string]string{provider: apiKey}
 	cfg.Model = model
 	cfg.MaxTokens = 4096
-	cfg.MaxRetries = 60
+	cfg.MaxRetries = 3
 	cfg.Timeout = time.Minute * 30
 	cfg.RetryDelay = time.Second * 10
 	cfg.LogLevel = gollm.LogLevelInfo
