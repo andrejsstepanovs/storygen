@@ -264,5 +264,5 @@ func (s *Story) BuildContent(chapterLabel, theEnd string) string {
 
 	// Join all parts with TWO newlines "\n\n".
 	// This creates ONE blank line between each element in the content slice.
-	return strings.Join(content, "\n\n")
+	return RemoveEmojis(strings.Join(content, "\n\n"))
 }

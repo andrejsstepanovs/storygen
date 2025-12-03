@@ -1,15 +1,15 @@
 package ai
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
+	"github.com/andrejsstepanovs/go-litellm/models"
+	"github.com/andrejsstepanovs/go-litellm/request"
 	"github.com/andrejsstepanovs/storygen/pkg/story"
-	"github.com/teilomillet/gollm"
 )
 
 const ChapterPromptInstructions = "# Content writing instructions:\n" +
@@ -61,12 +61,36 @@ const ChapterPromptInstructions = "# Content writing instructions:\n" +
 	"You often use descriptive phrases or clauses to extend sentences. " +
 	"While they add great imagery, they can feel repetitive if overused. " +
 	"Try mixing it up with shorter, punchier sentences or different ways of describing actions and settings! " +
-	"It’ll help keep the pacing fresh and engaging!" +
+	"It'll help keep the pacing fresh and engaging!" +
 	"Another thing - laughing and dancing is nice but too much is cringe."
 
-const ForceJson = "No yapping. Answer only with JSON content. Don't explain your choice (no explanation). No other explanations or unrelated text is necessary. Be careful generating JSON, it needs to be valid."
+const ForceJson = "No yapping. Answer **only with raw JSON**. Dont wrap json with tags or quotes or anything else. Answer only with RAW JSON."
 
 const GeneralInstruction = ""
+
+func (a *AI) generate(systemPrompt, userPrompt string, useJSON bool) (string, error) {
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
+	if err != nil {
+		return "", fmt.Errorf("failed to get model: %w", err)
+	}
+
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	if useJSON {
+		req.SetJSONMode()
+	}
+
+	resp, err := a.client.Completion(a.ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("completion failed: %w", err)
+	}
+
+	return resp.String(), nil
+}
 
 func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addressedSuggestions story.Suggestions) story.Suggestions {
 	problemInjsonTxt := ""
@@ -107,80 +131,100 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		},
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryChapterFixer",
-		"Our story auditor (pre-reader) found issues in story chapter. Pick what story chapters (chapter number) need to be re-written and suggest how to do it.",
-		"Analyze the {{.Audience}} story chapter {{.ChapterNumber}} {{.ChapterName}} issues:\n"+
-			"<issues>\n{{.Issues}}\n</issues>\n\n"+
-			"Here is our story until {{.ChapterNumber}} chapter: \n```json\n{{.StoryChapters}}\n```\n. "+
-			"Analyze this \"{{.Audience}}\" story and pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
-			"<ignore_known_suggestions>\n```json\n{{.AddressedSuggestions}}\n```</ignore_known_suggestions>\n"+
-			"There are maybe more chapters but lets focus on story until this moment. "+
-			"Think about what needs to be changed in what chapter and answer in great detail how to fix it (within given story chapter and with minimal text alterations)."+
-			"# Instructions:"+
-			"- Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions).\n"+
-			"- Don't challenge (and keep) the {{.Audience}} story writing style.\n"+
-			"- Story writing style was already predefined and we are sticking with it.\n"+
-			"- You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
-			"- Focus on fixing the most illogical or problematic aspects of this {{.Audience}} story first. Avoid being overly pedantic - perfection isn’t the goal here. Address major inconsistencies, plot holes, or pacing issues before tackling smaller details. Only suggest minor improvements (and sparingly) once the bigger issues are resolved.\n"+
-			"- Keep feedback practical and audience-appropriate.\n"+
-			"- Be creative with suggestions to fix issues at hand.\n"+
-			"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
-			"- It is OK to extend the story if that is necessary to fix the plot.\n"+
-			"- Come up with 5 or less suggestions (0 is all feels good enough).\n"+
-			"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n\n"+
-			"# Answer:\n"+
-			"- "+ForceJson+" "+GeneralInstruction+"\n"+
-			"- Return empty JSON array (`[]`) if there is nothing important to fix. "+problemInjsonTxt,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."),
-			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'suggestions_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content. Be careful generating JSON, it needs to be valid. "+problemInjsonTxt),
-			gollm.WithExamples([]string{suggestions.ToJson()}...),
-		),
-	)
+	systemPrompt := "You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Issues":               problem.ToJson(),
-		"StoryChapters":        storyEl.ToJson(),
-		"AddressedSuggestions": addressedSuggestions.ToJson(),
-		"ChapterNumber":        problem.Chapter,
-		"ChapterName":          problem.ChapterName,
-		"Audience":             a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Analyze the %s story chapter %d %s issues:\n"+
+		"<issues>\n%s\n</issues>\n\n"+
+		"Here is our story until %d chapter: \n```json\n%s\n```\n. "+
+		"Analyze this \"%s\" story and pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
+		"<ignore_known_suggestions>\n```json\n%s\n```</ignore_known_suggestions>\n"+
+		"There are maybe more chapters but lets focus on story until this moment. "+
+		"Think about what needs to be changed in what chapter and answer in great detail how to fix it (within given story chapter and with minimal text alterations)."+
+		"# Instructions:"+
+		"- Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions).\n"+
+		"- Don't challenge (and keep) the %s story writing style.\n"+
+		"- Story writing style was already predefined and we are sticking with it.\n"+
+		"- You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
+		"- Focus on fixing the most illogical or problematic aspects of this %s story first. Avoid being overly pedantic - perfection isn't the goal here. Address major inconsistencies, plot holes, or pacing issues before tackling smaller details. Only suggest minor improvements (and sparingly) once the bigger issues are resolved.\n"+
+		"- Keep feedback practical and audience-appropriate.\n"+
+		"- Be creative with suggestions to fix issues at hand.\n"+
+		"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
+		"- It is OK to extend the story if that is necessary to fix the plot.\n"+
+		"- Come up with 5 or less suggestions (0 is all feels good enough).\n"+
+		"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n\n"+
+		"# Answer:\n"+
+		"- %s %s\n"+
+		"- Return empty JSON array (`[]`) if there is nothing important to fix. "+
+		"- Example format: %s\n"+
+		"%s",
+		a.audience, problem.Chapter, problem.ChapterName,
+		problem.ToJson(),
+		problem.Chapter,
+		storyEl.ToJson(),
+		a.audience,
+		addressedSuggestions.ToJson(),
+		a.audience,
+		a.audience,
+		ForceJson, GeneralInstruction,
+		suggestions.ToJson(),
+		problemInjsonTxt)
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "story_suggestions",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"chapter_number_int": map[string]interface{}{
+						"type":        "integer",
+						"description": "The chapter number that needs adjustment",
+					},
+					"chapter_name": map[string]interface{}{
+						"type":        "string",
+						"description": "The name of the chapter",
+					},
+					"suggestions_array_string": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+						"description": "Array of suggestions for fixing the chapter",
+					},
+				},
+				"required":             []string{"chapter_number_int", "chapter_name", "suggestions_array_string"},
+				"additionalProperties": false,
+			},
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
 	if err != nil {
-		log.Fatalf("Failed to generate template response: %v", err)
-	}
-	templateResponse = removeThinking(templateResponse)
-	templateResponse = cleanResponse(templateResponse)
-
-	var picked []story.Suggestion
-	err = json.Unmarshal([]byte(templateResponse), &picked)
-	if err != nil {
-		responseJson := cleanResponse(templateResponse)
-		if responseJson != "[]" {
-			err = json.Unmarshal([]byte(responseJson), &picked)
-			if err != nil {
-				responseJson = fmt.Sprintf("[%s]", responseJson)
-				err = json.Unmarshal([]byte(responseJson), &picked)
-				if err != nil {
-					log.Println("Failed to parse JSON. Trying again")
-					log.Println(templateResponse)
-					log.Println("cleaned:", responseJson)
-					return story.Suggestions{}, templateResponse, err
-				}
-			}
-		}
+		return story.Suggestions{}, "", fmt.Errorf("failed to get model: %w", err)
 	}
 
-	var p story.Suggestions
-	p = picked
-	return p, "", nil
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
+	if err != nil {
+		return story.Suggestions{}, "", fmt.Errorf("completion failed: %w", err)
+	}
+
+	var picked story.Suggestions
+	err = json.Unmarshal(resp.Bytes(), &picked)
+	if err != nil {
+		return story.Suggestions{}, resp.String(), fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	return picked, "", nil
 }
 
 func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, suggestions story.Suggestions, addressedSuggestions story.Suggestions, wordCount int) string {
@@ -188,47 +232,33 @@ func (a *AI) AdjustStoryChapter(storyEl story.Story, problem story.Problem, sugg
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryChapterFixer",
-		"There are issues in this story chapter. Re-write the chapter and fix all mentioned problems",
-		"Re-write the {{.Audience}} Story chapter {{.ChapterNumber}} {{.ChapterName}}. "+
-			//"Issues found: \n<issues>\n{{.Issues}}\n</issues>\n\n"+
-			"Analyze full {{.Audience}} Story and adjust the problematic chapter {{.ChapterNumber}} {{.ChapterName}}.\n"+
-			"Here are all already addressed suggestions: \n<already_addressed_suggestions>\n{{.AddressedSuggestions}}\n</already_addressed_suggestions>\n"+
-			"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n{{.Suggestions}}\n</fix_suggestions>\n"+
-			"Use and rely only on these suggestions provided!\n"+
-			"For reference, here is full story until this chapter ```json\n{{.StoryChapters}}\n```. "+
-			"# Orders:"+
-			"- There are maybe more chapters but lets focus on story until this moment.\n"+
-			"- Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
-			"- Use suggestions from fix_suggestions tag to re-write the story chapter {{.ChapterNumber}} {{.ChapterName}} as suggested. "+
-			"- Make sure you don't break out of suggestions that were fixed before (see json in: already_addressed_suggestions tags). "+
-			"- Answer with only one chapter text. We are fixing it one chapter at the time. "+
-			"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
-			"- Small text extensions are OK, but we should try to keep this chapter withing a limit of {{.Words}} words. "+
-			GeneralInstruction+" "+ChapterPromptInstructions,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are story writer that is fixing story issues before it goes to publishing."),
-			gollm.WithOutput("Story chapter text. Answer with story chapter text only. We need nothing else than just this one chapter with fixed content. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with this one fixed chapter text."),
-		),
-	)
+	systemPrompt := "You are story writer that is fixing story issues before it goes to publishing."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Issues":               problem.ToJson(),
-		"StoryChapters":        storyEl.ToJson(),
-		"Suggestions":          suggestions.ToJson(),
-		"AddressedSuggestions": addressedSuggestions.ToJson(),
-		"ChapterNumber":        problem.Chapter,
-		"ChapterName":          problem.ChapterName,
-		"Audience":             a.audience,
-		"Words":                wordCount,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Re-write the %s Story chapter %d %s. "+
+		"Analyze full %s Story and adjust the problematic chapter %d %s.\n"+
+		"Here are all already addressed suggestions: \n<already_addressed_suggestions>\n%s\n</already_addressed_suggestions>\n"+
+		"**IMPORTANT**: Suggestions how to fix the issues at hand: \n<fix_suggestions>\n%s\n</fix_suggestions>\n"+
+		"Use and rely only on these suggestions provided!\n"+
+		"For reference, here is full story until this chapter ```json\n%s\n```. "+
+		"# Orders:"+
+		"- There are maybe more chapters but lets focus on story until this moment.\n"+
+		"- Fix only this chapter so story is coherent, entertaining and makes sense (use given suggestions). "+
+		"- Use suggestions from fix_suggestions tag to re-write the story chapter %d %s as suggested. "+
+		"- Make sure you don't break out of suggestions that were fixed before (see json in: already_addressed_suggestions tags). "+
+		"- Answer with only one chapter text. We are fixing it one chapter at the time. "+
+		"- Be creative to fix the issue at hand. Be swift and decisive. No need for long texts, we just need to fix these issues and move on. "+
+		"- Small text extensions are OK, but we should try to keep this chapter withing a limit of %d words. "+
+		"%s %s",
+		a.audience, problem.Chapter, problem.ChapterName,
+		a.audience, problem.Chapter, problem.ChapterName,
+		addressedSuggestions.ToJson(),
+		suggestions.ToJson(),
+		storyEl.ToJson(),
+		problem.Chapter, problem.ChapterName,
+		wordCount,
+		GeneralInstruction, ChapterPromptInstructions)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -272,58 +302,77 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 		},
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryIssueSpotter",
-		"Pre read the story and figure out the logical issues.",
-		"Create a JSON problem list for {{.Audience}} story we need to check (pre-read):\n"+
-			"<story_text>\n{{.StoryText}}\n</story_text>\n\n"+
-			"Find problems and flaws in the plot and answer with formatted output as mentioned in examples.\n"+
-			"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter.\n"+
-			"This is cycle {{.Loop}} of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: {{.MaxLoops}}.\n\n"+
-			GeneralInstruction+" "+ForceJson+"\n"+
-			"If no flaws are found, do not include the chapter in your output. "+promptExend,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to pre-read a story and your output will help us to fix the story flaws."),
-			gollm.WithOutput("JSON of story issues (problems) (as array) in JSON format. Use only protagonists from the list that was provided."),
-			gollm.WithOutput("Answer only JSON array with columns 'chapter_number_int', 'chapter_name', 'issues_array_string'. No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
-			gollm.WithExamples([]string{problems.ToJson()}...),
-		),
-	)
+	systemPrompt := "You are helping to pre-read a story and your output will help us to fix the story flaws."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"StoryText": storyText,
-		"Audience":  a.audience,
-		"Loop":      loop,
-		"MaxLoops":  maxLoops,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a JSON problem list for %s story we need to check (pre-read):\n"+
+		"<story_text>\n%s\n</story_text>\n\n"+
+		"Find problems and flaws in the plot and answer with formatted output as mentioned in examples.\n"+
+		"Carefully read the story text chapter by chapter and analyze it for logical flaws in the story in each chapter.\n"+
+		"This is cycle %d of pre-reading. Reduce strictness and issue count proportionally to the number of cycles completed. Max cycles: %d.\n\n"+
+		"%s %s\n"+
+		"If no flaws are found, do not include the chapter in your output. "+
+		"Example format: %s\n"+
+		"%s",
+		a.audience,
+		storyText,
+		loop, maxLoops,
+		GeneralInstruction, ForceJson,
+		problems.ToJson(),
+		promptExend)
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "story_problems",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"chapter_number_int": map[string]interface{}{
+						"type":        "integer",
+						"description": "The chapter number with issues",
+					},
+					"chapter_name": map[string]interface{}{
+						"type":        "string",
+						"description": "The name of the chapter",
+					},
+					"issues_array_string": map[string]interface{}{
+						"type": "array",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+						"description": "Array of issues found in the chapter",
+					},
+				},
+				"required":             []string{"chapter_number_int", "chapter_name", "issues_array_string"},
+				"additionalProperties": false,
+			},
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
 	if err != nil {
-		log.Fatalf("Failed to generate template response: %v", err)
+		return story.Problems{}, "", fmt.Errorf("failed to get model: %w", err)
 	}
-	templateResponse = removeThinking(templateResponse)
 
-	var picked []story.Problem
-	err = json.Unmarshal([]byte(templateResponse), &picked)
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
 	if err != nil {
-		responseJson := cleanResponse(templateResponse)
-		responseJson = cleanResponse(responseJson)
-		if responseJson != "[]" {
-			err = json.Unmarshal([]byte(templateResponse), &picked)
-			if err != nil {
-				responseJson = fmt.Sprintf("[%s]", responseJson)
-				err = json.Unmarshal([]byte(responseJson), &picked)
-				if err != nil {
-					log.Println(templateResponse)
-					log.Println("cleaned:", responseJson)
-					return story.Problems{}, templateResponse, fmt.Errorf("failed to parse JSON for found problems response: %v", err)
-				}
-			}
-		}
+		return story.Problems{}, "", fmt.Errorf("completion failed: %w", err)
+	}
+
+	var picked story.Problems
+	err = json.Unmarshal(resp.Bytes(), &picked)
+	if err != nil {
+		return story.Problems{}, resp.String(), fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	ret := make(story.Problems, 0)
@@ -342,63 +391,88 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 		return p.ToJson()
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"ProtagonistsPicker",
-		"Pick protagonists that will be a good fit for the given story.",
-		"Create a JSON protagonists list that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
-			"Be mindful about how many you are picking. "+
-			"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
-			"Your task now is to pick from the list.\n"+
-			"Pick good simple but memorable protagonist names.\n"+
-			"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting."+
-			"Don't specify protagonists sexual orientations, that type of info is mostly irrelevant in {{.Audience}} stories.\n"+
-			GeneralInstruction+" "+ForceJson+"\n",
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
-			gollm.WithOutput("JSON of protagonist elements (as array) in JSON format. Use only protagonists from the list that was provided."),
-			gollm.WithOutput("Answer only JSON array with columns 'type', 'gender', 'size', 'age', 'name', 'voice'. All parameters must be string (also age is string). No yapping. No other explanations or unrelated text is necessary. Dont explain yourself. Answer only with JSON content."),
-			gollm.WithExamples(examples(5)),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story ideas that will be used later on."
 
-	allTimePeriods := story.GetAvailableTimePeriods()
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"TimePeriods": allTimePeriods.ToJson(),
-		"Story":       storyEl.ToJson(),
-		"Audience":    a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a JSON protagonists list that will fit the %s story we will write. Story:\n```json\n%s\n```\n\n"+
+		"Be mindful about how many you are picking. "+
+		"It is totally OK to pick single or multiple same types of protagonists as they're personas will be extended later on with more details."+
+		"Your task now is to pick from the list.\n"+
+		"Pick good simple but memorable protagonist names.\n"+
+		"Be creative with your picks. We want a vibrant, exciting story and protagonists are/is important and needs to be suitable and interesting."+
+		"Don't specify protagonists sexual orientations, that type of info is mostly irrelevant in %s stories.\n"+
+		"%s %s\n"+
+		"Example format: %s",
+		a.audience,
+		storyEl.ToJson(),
+		a.audience,
+		GeneralInstruction, ForceJson,
+		examples(5))
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "protagonists_list",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "The protagonist's name",
+					},
+					"voice": map[string]interface{}{
+						"type":        "string",
+						"description": "Description of the protagonist's voice",
+					},
+					"type": map[string]interface{}{
+						"type":        "string",
+						"description": "Type of protagonist (human, animal, mythical being, etc.)",
+					},
+					"gender": map[string]interface{}{
+						"type":        "string",
+						"description": "Gender of the protagonist",
+					},
+					"size": map[string]interface{}{
+						"type":        "string",
+						"description": "Size of the protagonist (small, normal, large)",
+					},
+					"age": map[string]interface{}{
+						"type":        "string",
+						"description": "Age category of the protagonist",
+					},
+				},
+				"required":             []string{"name", "voice", "type", "gender", "size", "age"},
+				"additionalProperties": false,
+			},
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
+	if err != nil {
+		log.Fatalf("Failed to get model: %v", err)
+	}
+
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
-	templateResponse = removeThinking(templateResponse)
-	templateResponse = cleanResponse(templateResponse)
 
-	var picked []story.Protagonist
-	err = json.Unmarshal([]byte(templateResponse), &picked)
+	var picked story.Protagonists
+	err = json.Unmarshal(resp.Bytes(), &picked)
 	if err != nil {
-		responseJson := cleanResponse(templateResponse)
-		err = json.Unmarshal([]byte(templateResponse), &picked)
-		if err != nil {
-			responseJson = fmt.Sprintf("[%s]", responseJson)
-			err = json.Unmarshal([]byte(responseJson), &picked)
-			if err != nil {
-				log.Println("Failed to parse JSON. Trying again")
-				log.Println(templateResponse)
-				log.Println("cleaned:", responseJson)
-				log.Fatalf("Failed to parse time protagonists as JSON: %v", err)
-			}
-		}
+		log.Fatalf("Failed to parse protagonists as JSON %s: %v", resp.String(), err)
 	}
 
-	var p story.Protagonists
-	p = picked
-	return p
+	return picked
 }
 
 func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
@@ -416,127 +490,126 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 		return string(jsonResp)
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"MoralesPicker",
-		"Pick all morales that will be a good fit for the given story.",
-		"Create a list of morale names that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
-			"Pick morales (`name`) from list of available morales:\n```\njson{{.Morales}}\n```"+
-			"Be flexible with your picks. We want creative choices for exciting story.\n"+
-			"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.\n"+
-			GeneralInstruction+" "+ForceJson+"\n"+
-			"No yapping. Answer with a list of morale names as strings (as simple array list with no key(s)) in JSON format.",
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
-			gollm.WithOutput("Answer only with the morale names in JSON array."),
-			gollm.WithExamples([]string{moraleExample(3)}...),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story ideas that will be used later on."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Morales":  morales.ToJson(),
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a list of morale names that will fit the %s story we will write. Story:\n```json\n%s\n```\n\n"+
+		"Pick morales (`name`) from list of available morales:\n```\njson%s\n```"+
+		"Be flexible with your picks. We want creative choices for exciting story.\n"+
+		"Do not be afraid to pick something (I noticed you always pick Courage) that is not fitting perfectly. The more the better.\n"+
+		"%s %s\n"+
+		"No yapping. Answer with a list of morale names as strings (as simple array list with no key(s)) in JSON format.\n"+
+		"Example: %s",
+		a.audience,
+		storyEl.ToJson(),
+		morales.ToJson(),
+		GeneralInstruction, ForceJson,
+		moraleExample(3))
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "morale_names",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of a morale from the available list",
+			},
+			"description": "Array of morale names",
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
+	if err != nil {
+		log.Fatalf("Failed to get model: %v", err)
+	}
+
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	templateResponse = removeThinking(templateResponse)
-
 	var picked []string
-	responseJson := templateResponse
-	if responseJson != "[]" {
-		responseJson = cleanResponse(templateResponse)
-		responseJson = cleanResponse(responseJson)
-		err = json.Unmarshal([]byte(responseJson), &picked)
-		if err != nil {
-			log.Println(templateResponse)
-			log.Println("cleaned:", responseJson)
-			log.Fatalf("Failed to parse JSON for found morales response: %v", err)
-			//return story.Morales{}, templateResponse , err
-		}
+	err = json.Unmarshal(resp.Bytes(), &picked)
+	if err != nil {
+		log.Fatalf("Failed to parse JSON for morales response: %v", err)
 	}
-
-	//fmt.Printf("%s", strings.Join(picked, ","))
 
 	return story.FindMoralesByName(picked)
 }
 
 func (a *AI) FigureStoryIdeas(count int) []string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryIdeasPicker",
-		"Come up with random story ideas.",
-		"Create a list of {{.Count}} story ideas that will fit the {{.Audience}}\n"+
-			"Be creative and funny.\n"+
-			GeneralInstruction+" "+ForceJson+"\n"+
-			"No yapping. Answer with a list of story ideas as strings (as simple array list with no key(s)) in JSON format.",
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
-			gollm.WithOutput("Answer only with the morale names in JSON array."),
-			gollm.WithExamples([]string{"a story about a boy and kangaroo", "mistery of lost cooky", "bob and his speedboat", "funny story about flying", "master and the boot"}...),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story ideas that will be used later on."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Count":    count,
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a list of %d story ideas that will fit the %s\n"+
+		"Be creative and funny.\n"+
+		"%s %s\n"+
+		"No yapping. Answer with a list of story ideas as strings (as simple array list with no key(s)) in JSON format.",
+		count,
+		a.audience,
+		GeneralInstruction, ForceJson)
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "story_ideas",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type":        "string",
+				"description": "A creative and funny story idea",
+			},
+			"description": "Array of story ideas",
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
+	if err != nil {
+		log.Fatalf("Failed to get model: %v", err)
+	}
+
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	templateResponse = removeThinking(templateResponse)
-
 	var picked []string
-	responseJson := templateResponse
-	if responseJson != "[]" {
-		responseJson = cleanResponse(templateResponse)
-		err = json.Unmarshal([]byte(responseJson), &picked)
-		if err != nil {
-			log.Println(templateResponse)
-			log.Println("cleaned:", responseJson)
-			log.Fatalf("Failed to parse JSON for found morales response: %v", err)
-		}
+	err = json.Unmarshal(resp.Bytes(), &picked)
+	if err != nil {
+		log.Fatalf("Failed to parse JSON for story ideas response: %v", err)
 	}
 
 	return picked
 }
 
 func (a *AI) FigureStoryVillainVoice(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"VillainVoiceGenerator",
-		"Analyze a story and come up with a villain voice.",
-		"Create Villain voice. How it sounds, what are the intricate details of how he/she/them talk."+
-			"This is Villain description: {{.Villain}} in a story:\n```json\n{{.Story}}\n```\n\n"+
-			GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story book. Now working on picking story villain voice."),
-			gollm.WithOutput("Short clear description of how the villain(s) talk. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) voice description."),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story book. Now working on picking story villain voice."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":   storyEl.ToJson(),
-		"Villain": storyEl.Villain,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Create Villain voice. How it sounds, what are the intricate details of how he/she/them talk."+
+		"This is Villain description: %s in a story:\n```json\n%s\n```\n\n"+
+		"%s\n"+
+		"Short clear description of how the villain(s) talk. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) voice description. Answer with raw text (not json).",
+		storyEl.Villain,
+		storyEl.ToJson(),
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -545,39 +618,28 @@ func (a *AI) FigureStoryVillainVoice(storyEl story.Story) string {
 }
 
 func (a *AI) FigureStoryVillain(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"VillainGenerator",
-		"Analyze a story and come up with a villain for this story that will fit good.",
-		"Create Villain for this {{.Audience}} story:\n```json\n{{.Story}}\n```\n\n"+
-			"Keep it simple and do not build backstory or villain characteristics or motives. "+
-			"Take into consideration Story Suggestion. "+
-			"That kind of details are irrelevant right now and will actually harm the story building part that will come next, "+
-			"so be mindful about it. Just short description about who the villain(s) is/are. "+
-			"It is OK to not have a villain if it dont belong to the story we're writing."+
-			"I noticed that you often pick wizards that can do magic. "+
-			"Try to be more creative (if story suggestion allows it) "+
-			"and find a villain that is more down to earth (but still evil, bad, annoying, etc.) "+
-			"with his/her own backstory, skills and agenda "+
-			"that we can work with in the story.\n"+
-			GeneralInstruction+"\n"+
-			"By the way, villain can also be elements of nature or unmovable objects and that kind of stuff. "+
-			"Depends on the story we're building. Be creative if possible. Answer with plain text.",
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story book. Villain that you are building (writing) will be used later on when story itself will be written."),
-			gollm.WithOutput("Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) description in plain text."),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story book. Villain that you are building (writing) will be used later on when story itself will be written."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Create Villain for this %s story:\n```json\n%s\n```\n\n"+
+		"Keep it simple and do not build backstory or villain characteristics or motives. "+
+		"Take into consideration Story Suggestion. "+
+		"That kind of details are irrelevant right now and will actually harm the story building part that will come next, "+
+		"so be mindful about it. Just short description about who the villain(s) is/are. "+
+		"It is OK to not have a villain if it dont belong to the story we're writing."+
+		"I noticed that you often pick wizards that can do magic. "+
+		"Try to be more creative (if story suggestion allows it) "+
+		"and find a villain that is more down to earth (but still evil, bad, annoying, etc.) "+
+		"with his/her own backstory, skills and agenda "+
+		"that we can work with in the story.\n"+
+		"%s\n"+
+		"By the way, villain can also be elements of nature or unmovable objects and that kind of stuff. "+
+		"Depends on the story we're building. Be creative if possible. Answer with plain text.\n"+
+		"Sort description and name of the villain(s) or nothing. No yapping. Don't explain your choice or add any other notes and explenations. Answer only with the villain(s) description in plain text.",
+		a.audience,
+		storyEl.ToJson(),
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -586,39 +648,29 @@ func (a *AI) FigureStoryVillain(storyEl story.Story) string {
 }
 
 func (a *AI) FigureStoryPlan(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryPlanGenerator",
-		"Analyze a story and come up with a story plan that will be useful to follow for a writer later on.",
-		"Create and {{.Audience}} story plan about the story. **This is the Story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"Follow main ideas that are already prepared for the story. "+
-			"Be careful building story plan in a way that existing story you are working with (from json above) fits good. "+
-			"Make sure you work with Story structure that was picked. We want our plan to align with picked story structure. "+
-			"Keep in mind story length. "+
-			"Take into consideration Story Suggestion. "+
-			"Same goes for picked story morales. Summary and plan should match picked story morales. "+
-			"Story plan should be quite brief and short list of things that will happen in the story with no specifics. Details will be written later on. "+
-			"Write the plan in a way that the writer later on will not be much constrained with. We want to keep story plan loose and flexible (no details). "+
-			"Be creative and make sure that this {{.Audience}} story is moving forward fast so it is engaging and fun to read. "+
-			"Plan a story in a way where there are no boring parts and plot is moving forward fast. "+
-			"Don't forget to include ending to the story you're planning so there is satisfying conclusions is built into the story properly. "+
-			"Consider adding some plot twists and funny interactions between characters.\n"+
-			GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story book."),
-			gollm.WithOutput("Story summary and story plan to help the writer later on when they will write the story. No yapping. Don't explain your choice or add any other notes and explenations."),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story book."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Create and %s story plan about the story. **This is the Story you need to work with**:\n```json\n%s\n```\n\n"+
+		"Follow main ideas that are already prepared for the story. "+
+		"Be careful building story plan in a way that existing story you are working with (from json above) fits good. "+
+		"Make sure you work with Story structure that was picked. We want our plan to align with picked story structure. "+
+		"Keep in mind story length. "+
+		"Take into consideration Story Suggestion. "+
+		"Same goes for picked story morales. Summary and plan should match picked story morales. "+
+		"Story plan should be quite brief and short list of things that will happen in the story with no specifics. Details will be written later on. "+
+		"Write the plan in a way that the writer later on will not be much constrained with. We want to keep story plan loose and flexible (no details). "+
+		"Be creative and make sure that this %s story is moving forward fast so it is engaging and fun to read. "+
+		"Plan a story in a way where there are no boring parts and plot is moving forward fast. "+
+		"Don't forget to include ending to the story you're planning so there is satisfying conclusions is built into the story properly. "+
+		"Consider adding some plot twists and funny interactions between characters.\n"+
+		"%s\n"+
+		"Story summary and story plan to help the writer later on when they will write the story. No yapping. Don't explain your choice or add any other notes and explenations.",
+		a.audience,
+		storyEl.ToJson(),
+		a.audience,
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -627,34 +679,22 @@ func (a *AI) FigureStoryPlan(storyEl story.Story) string {
 }
 
 func (a *AI) CompareStories(storyA, storyB story.Story) story.Story {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryComparing",
-		"Analyze and compare 2 stories and figure out the best one.",
-		"Analyze these 2 {{.Audience}} stories and answer with number which story is better.\n."+
-			"**Story Nr. 1**:\n```json\n{{.StoryA}}\n```\n\n"+
-			"**Story Nr. 2**:\n```json\n{{.StoryA}}\n```\n\n"+
-			"Compare these 2 stories and answer with number which story is better. This is really important task, be careful. Your answer matters a lot! Best story author will get $ 1000000 cash prize.\n"+
-			"Consider story plot, engagement and how fun it would be to read. "+
-			"Analyze also story plot logical issues. If one story plot is logically broken (do not make sense), then that is really bad. "+
-			"Answer with single word that is a number in INTEGER format. Do not explain why you picked one over the other. If story 1 is better then answer with 1, if story 2 is better then answer with 2. "+
-			GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to compare 2 story books."),
-		),
-	)
+	systemPrompt := "You are helping to compare 2 story books."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"StoryA":   storyA.ToJson(),
-		"StoryB":   storyB.ToJson(),
-		"Audience": a.audience,
-	})
+	userPrompt := fmt.Sprintf("Analyze these 2 %s stories and answer with number which story is better.\n."+
+		"**Story Nr. 1**:\n```json\n%s\n```\n\n"+
+		"**Story Nr. 2**:\n```json\n%s\n```\n\n"+
+		"Compare these 2 stories and answer with number which story is better. This is really important task, be careful. Your answer matters a lot! Best story author will get $ 1000000 cash prize.\n"+
+		"Consider story plot, engagement and how fun it would be to read. "+
+		"Analyze also story plot logical issues. If one story plot is logically broken (do not make sense), then that is really bad. "+
+		"Answer with single word that is a number in INTEGER format. Do not explain why you picked one over the other. If story 1 is better then answer with 1, if story 2 is better then answer with 2. "+
+		"%s",
+		a.audience,
+		storyA.ToJson(),
+		storyB.ToJson(),
+		GeneralInstruction)
 
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
-
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -690,44 +730,55 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 		return string(jsonResp)
 	}
 
-	templatePrompt := gollm.NewPromptTemplate(
-		"TimePeriodPicker",
-		"Pick time periods that will be a good fit for the given story.",
-		"Create a list of time periods that will fit the {{.Audience}} story we will write. Story:\n```json\n{{.Story}}\n```\n\n"+
-			"Pick time periods (`name`) from list of available time periods:\n```\njson{{.TimePeriods}}\n```"+
-			"Be flexible with your picks. We want a vibrant, exciting story and time period is important and needs to be suitable and interesting. "+GeneralInstruction+" "+ForceJson,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story ideas that will be used later on."),
-			gollm.WithOutput("List of time period names strings (as array) in JSON format"),
-			gollm.WithOutput(ForceJson),
-			gollm.WithExamples(timePeriodExample(3)),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story ideas that will be used later on."
 
 	allTimePeriods := story.GetAvailableTimePeriods()
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"TimePeriods": allTimePeriods.ToJson(),
-		"Story":       storyEl.ToJson(),
-		"Audience":    a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a list of time periods that will fit the %s story we will write. Story:\n```json\n%s\n```\n\n"+
+		"Pick time periods (`name`) from list of available time periods:\n```\njson%s\n```"+
+		"Be flexible with your picks. We want a vibrant, exciting story and time period is important and needs to be suitable and interesting. "+
+		"%s %s\n"+
+		"Example: %s",
+		a.audience,
+		storyEl.ToJson(),
+		allTimePeriods.ToJson(),
+		GeneralInstruction, ForceJson,
+		timePeriodExample(3))
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "time_period_names",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type":        "string",
+				"description": "Name of a time period from the available list",
+			},
+			"description": "Array of time period names",
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
+	if err != nil {
+		log.Fatalf("Failed to get model: %v", err)
+	}
+
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
-	responseJson := cleanResponse(templateResponse)
-	responseJson = cleanResponse(responseJson)
-
 	var picked []string
-	err = json.Unmarshal([]byte(responseJson), &picked)
+	err = json.Unmarshal(resp.Bytes(), &picked)
 	if err != nil {
-		log.Println(templateResponse)
-		log.Println(responseJson)
 		log.Fatalf("Failed to parse time period response as JSON: %v", err)
 	}
 
@@ -735,74 +786,75 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 }
 
 func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) ([]string, error) {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryChapterTitleCreator",
-		"Create a story chapter titles.",
-		"Create a list of story chapter titles that will be used for this {{.Audience}} story:\n```json\n{{.Story}}\n```\n\n"+
-			"Make sure that chapter titles align with existing story details. "+
-			"Take into consideration Story Suggestion. Make sure that story have a clear ending. "+
-			"Be mindful about the chapter count so it aligns good with story length. Usually there is no need for more than {{.Count}} chapters. "+
-			"Write chapter titles in a way that the plot is naturally moving forward and is aligned with defined {{.Audience}} story structure requirements.\n"+
-			GeneralInstruction+" "+ForceJson,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story content chapter titles."),
-			gollm.WithOutput("List of chapter titles strings (as array) in JSON format. No other text or story content should be written. Only JSON array (no keys) of short story chapter title strings."),
-			gollm.WithExamples([]string{"['The Mysterious Map', 'The Magic Paintbrush', 'The Rainbow Bridge', 'The final battle', 'The Return to Home Sweet Home']"}...),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story content chapter titles."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Count":    chapterCount,
-		"Audience": a.audience,
-	})
-	if err != nil {
-		return []string{}, fmt.Errorf("failed to execute prompt template: %v", err)
+	userPrompt := fmt.Sprintf("Create a list of story chapter titles that will be used for this %s story:\n```json\n%s\n```\n\n"+
+		"Make sure that chapter titles align with existing story details. "+
+		"Take into consideration Story Suggestion. Make sure that story have a clear ending. "+
+		"Be mindful about the chapter count so it aligns good with story length. Usually there is no need for more than %d chapters. "+
+		"Write chapter titles in a way that the plot is naturally moving forward and is aligned with defined %s story structure requirements.\n"+
+		"%s %s\n"+
+		"Example: ['The Mysterious Map', 'The Magic Paintbrush', 'The Rainbow Bridge', 'The final battle', 'The Return to Home Sweet Home']",
+		a.audience,
+		storyEl.ToJson(),
+		chapterCount,
+		a.audience,
+		GeneralInstruction, ForceJson+" Make sure your answer starts with [ and list of json array values.")
+
+	// Create JSON schema for structured output
+	schema := request.JSONSchema{
+		Name: "chapter_titles",
+		Schema: map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type":        "string",
+				"description": "A chapter title",
+			},
+			"description": "Array of chapter titles",
+		},
+		Strict: true,
 	}
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt, gollm.WithJSONSchemaValidation())
+	model, err := a.client.Model(a.ctx, models.ModelID(a.model))
 	if err != nil {
-		return []string{}, fmt.Errorf("failed to generate template response: %v", err)
+		return []string{}, fmt.Errorf("failed to get model: %w", err)
 	}
 
-	responseJson := cleanResponse(templateResponse)
-	responseJson = cleanResponse(responseJson)
+	messages := request.Messages{
+		request.SystemMessageSimple(systemPrompt),
+		request.UserMessageSimple(userPrompt),
+	}
+
+	req := request.NewCompletionRequest(model, messages, nil, nil, 0.7)
+	req.SetJSONSchema(schema)
+
+	resp, err := a.client.Completion(a.ctx, req)
+	if err != nil {
+		return []string{}, fmt.Errorf("completion failed: %w", err)
+	}
 
 	var picked []string
-	err = json.Unmarshal([]byte(responseJson), &picked)
+	err = json.Unmarshal(resp.Bytes(), &picked)
 	if err != nil {
-		fmt.Println(templateResponse)
-		fmt.Println(responseJson)
-		return []string{}, fmt.Errorf("failed to parse time period response as JSON: %v", err)
+		return []string{}, fmt.Errorf("failed to parse chapter titles as JSON: %w", err)
 	}
 
 	return picked, nil
 }
 
 func (a *AI) FigureStorySummary(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StorySummaryGenerator",
-		"Analyze a story and summarize it in 1 sentence.",
-		"Create 1 sentence story summary for this story. "+
-			"**This is the {{.Audience}} story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"If exists, take into consideration Story Suggestion.\n"+GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are summarizing a story book."),
-			gollm.WithOutput("Answer only with the summary. No yapping. No other explanations, comments, notes or anything else. Answer only with the story summary text (content)."),
-		),
-	)
+	systemPrompt := "You are summarizing a story book."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Create 1 sentence story summary for this story. "+
+		"**This is the %s story you need to work with**:\n```json\n%s\n```\n\n"+
+		"If exists, take into consideration Story Suggestion.\n"+
+		"%s\n"+
+		"Answer only with the summary. No yapping. No other explanations, comments, notes or anything else. Answer only with the story summary text (content).",
+		a.audience,
+		storyEl.ToJson(),
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -811,28 +863,19 @@ func (a *AI) FigureStorySummary(storyEl story.Story) string {
 }
 
 func (a *AI) FigureStoryTitle(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryTitleGenerator",
-		"Analyze a story and come up with creative book name for the story.",
-		"Write a book name (title) for this {{.Audience}} story. **This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"Title must be 3-5 words long. Do not explain your choice, no explenation, notes or anything else is necessary. Answer only with 3-5 words!\n"+GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are writing a story book title."),
-			gollm.WithExamples([]string{"The Secret Library of Wishes", "The Brave Little Firefly", "The girl and the Talking Tree"}...),
-			gollm.WithOutput("Answer only with the short title (3-5 words). Answer only with short story title text."),
-		),
-	)
+	systemPrompt := "You are writing a story book title."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Write a book name (title) for this %s story. **This is the %s Story you need to work with**:\n```json\n%s\n```\n\n"+
+		"Title must be 3-5 words long. Do not explain your choice, no explenation, notes or anything else is necessary. Answer only with 3-5 words!\n"+
+		"%s\n"+
+		"Examples: 'The Secret Library of Wishes', 'The Brave Little Firefly', 'The girl and the Talking Tree'\n"+
+		"Answer only with the short title (3-5 words). Answer only with short story title text.",
+		a.audience,
+		a.audience,
+		storyEl.ToJson(),
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -841,22 +884,6 @@ func (a *AI) FigureStoryTitle(storyEl story.Story) string {
 }
 
 func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterTitle string, words int) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"CreativeStoryChapterWriter",
-		"Analyze story data and write a single chapter for it.",
-		"Write the single full chapter text, ensuring it flows naturally and keeps the reader engaged. "+
-			"**This is the {{.Audience}} story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"You need to write a chapter: \"{{.Number}}) - {{.Title}}\" content (text) {{.ChapterIntent}} "+
-			"Chapter should be written (should fit within) with approximately {{.Words}} words.\n"+
-			"Take your time to think about well-crafted chapter that fits the plot, enhances the narrative, and makes logical sense.\n"+
-			GeneralInstruction+"\n"+ChapterPromptInstructions+"\nAnswer with chapter content text.",
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are writing a story book chapter by chapter. Expand the story with one chapter."),
-			gollm.WithDirectives("You are creative and decisive story writer."),
-			gollm.WithOutput("Answer only with the story content. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Write only story content and nothing else. Answer only with the story chapter text."),
-		),
-	)
-
 	isLast := len(storyEl.Chapters) == chapterNumber
 	chapterIntent := "to proceed the storyline."
 	if isLast {
@@ -864,20 +891,24 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 			"This is the last chapter of the story so make sure that you end open story topics and end them with good conclusions."
 	}
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":         storyEl.ToJson(),
-		"Title":         chapterTitle,
-		"Number":        chapterNumber,
-		"Words":         words,
-		"Audience":      a.audience,
-		"ChapterIntent": chapterIntent,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	systemPrompt := "You are writing a story book chapter by chapter. Expand the story with one chapter. You are creative and decisive story writer."
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	userPrompt := fmt.Sprintf("Write the single full chapter text, ensuring it flows naturally and keeps the reader engaged. "+
+		"**This is the %s story you need to work with**:\n```json\n%s\n```\n\n"+
+		"You need to write a chapter: \"%d) - %s\" content (text) %s "+
+		"Chapter should be written (should fit within) with approximately %d words.\n"+
+		"Take your time to think about well-crafted chapter that fits the plot, enhances the narrative, and makes logical sense.\n"+
+		"%s\n"+
+		"%s\n"+
+		"Answer only with the story content. No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Write only story content and nothing else. Answer only with the story chapter text.",
+		a.audience,
+		storyEl.ToJson(),
+		chapterNumber, chapterTitle, chapterIntent,
+		words,
+		GeneralInstruction,
+		ChapterPromptInstructions)
+
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -886,38 +917,29 @@ func (a *AI) FigureStoryChapter(storyEl story.Story, chapterNumber int, chapterT
 }
 
 func (a *AI) FigureStoryLocation(storyEl story.Story) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"LocationGenerator",
-		"Analyze a story and come up with a story location that will fit good.",
-		"Create and describe a location where the story will take place. "+
-			"**This is the {{.Audience}} Story you need to work with**:\n```json\n{{.Story}}\n```\n\n"+
-			"Be creative while creating this story world. "+
-			"Do not mention protagonist or villain. "+
-			"Take into consideration Story Suggestion. "+
-			"Keep the world within time period that the story is taking place in. "+
-			"Keep the world size in line with story length. We will not be able to cram huge world into 2 minute story. "+
-			"Same applies other way around, we should have big enough world for longer stories. "+
-			"Specific details are good. "+
-			"Where who lives and other places around the protagonist(s) and villain are important as there most often the action (story) will happen. "+
-			"Dont be afraid to expand the world with more locations if you see that will benefit the upcoming story. "+
-			"Make the world so it is easy to imagine for {{.Audience}}. "+
-			"If writing for children then make interesting but not excessively complicated, so that little readers have no problem understanding it.\n"+GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are helping to prepare a story book. Story location that you are building (writing) will be used later on when story itself will be written."),
-			gollm.WithOutput("Answer only with the location text (content). No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the story location text."),
-		),
-	)
+	systemPrompt := "You are helping to prepare a story book. Story location that you are building (writing) will be used later on when story itself will be written."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Story":    storyEl.ToJson(),
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Create and describe a location where the story will take place. "+
+		"**This is the %s Story you need to work with**:\n```json\n%s\n```\n\n"+
+		"Be creative while creating this story world. "+
+		"Do not mention protagonist or villain. "+
+		"Take into consideration Story Suggestion. "+
+		"Keep the world within time period that the story is taking place in. "+
+		"Keep the world size in line with story length. We will not be able to cram huge world into 2 minute story. "+
+		"Same applies other way around, we should have big enough world for longer stories. "+
+		"Specific details are good. "+
+		"Where who lives and other places around the protagonist(s) and villain are important as there most often the action (story) will happen. "+
+		"Dont be afraid to expand the world with more locations if you see that will benefit the upcoming story. "+
+		"Make the world so it is easy to imagine for %s. "+
+		"If writing for children then make interesting but not excessively complicated, so that little readers have no problem understanding it.\n"+
+		"%s\n"+
+		"Answer only with the location text (content). No yapping. No other explanations or unrelated to title text is necessary. Dont explain yourself. Answer only with the story location text.",
+		a.audience,
+		storyEl.ToJson(),
+		a.audience,
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -926,26 +948,17 @@ func (a *AI) FigureStoryLocation(storyEl story.Story) string {
 }
 
 func (a *AI) TranslateSimpleText(englishText, toLanguage string) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"Translator",
-		fmt.Sprintf("Analyze given English language text and provide good translation in **%s** language).", toLanguage),
-		"Provide good translation. **This is the text you need to translate**:\n```\n{{.Text}}\n```\n\n"+
-			"Translate from English to {{.Language}}.\n"+GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithOutput("Answer only with the translated text. No yapping. No other explanations or unrelated notes or remarks are necessary. Dont explain yourself. Answer only with the translation."),
-		),
-	)
+	systemPrompt := "You are a translator."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Text":     englishText,
-		"Language": toLanguage,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Provide good translation. **This is the text you need to translate**:\n```\n%s\n```\n\n"+
+		"Translate from English to %s.\n"+
+		"%s\n"+
+		"Answer only with the translated text. No yapping. No other explanations or unrelated notes or remarks are necessary. Dont explain yourself. Answer only with the translation.",
+		englishText,
+		toLanguage,
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -954,31 +967,21 @@ func (a *AI) TranslateSimpleText(englishText, toLanguage string) string {
 }
 
 func (a *AI) TranslateText(englishText, toLanguage string) string {
-	templatePrompt := gollm.NewPromptTemplate(
-		"StoryChapterTranslator",
-		fmt.Sprintf("Analyze given English language text and provide good translation in **%s** language).", toLanguage),
-		"Inspect given English text carefully and provide good translation. **This is the text you need to translate**:\n```\n{{.Text}}\n```\n\n"+
-			"Translate from English to {{.Language}}.\n"+
-			"Maintain the feeling and vibe of the original text.\n"+
-			"Target audience is \"{{.Audience}}\", so translate accordingly to match it in a way that target audience are able to easily understand the translation.\n"+
-			"Keep original text newlines as is.\n"+GeneralInstruction,
-		gollm.WithPromptOptions(
-			gollm.WithContext("You are translating single chapter for a story book."),
-			gollm.WithOutput("Answer only with the translated text. No yapping. No other explanations or unrelated notes or remarks are necessary. Dont explain yourself. Answer only with the translation."),
-		),
-	)
+	systemPrompt := "You are translating single chapter for a story book."
 
-	prompt, err := templatePrompt.Execute(map[string]interface{}{
-		"Text":     englishText,
-		"Language": toLanguage,
-		"Audience": a.audience,
-	})
-	if err != nil {
-		log.Fatalf("Failed to execute prompt template: %v", err)
-	}
+	userPrompt := fmt.Sprintf("Inspect given English text carefully and provide good translation. **This is the text you need to translate**:\n```\n%s\n```\n\n"+
+		"Translate from English to %s.\n"+
+		"Maintain the feeling and vibe of the original text.\n"+
+		"Target audience is \"%s\", so translate accordingly to match it in a way that target audience are able to easily understand the translation.\n"+
+		"Keep original text newlines as is.\n"+
+		"%s\n"+
+		"Answer only with the translated text. No yapping. No other explanations or unrelated notes or remarks are necessary. Dont explain yourself. Answer only with the translation.",
+		englishText,
+		toLanguage,
+		a.audience,
+		GeneralInstruction)
 
-	ctx := context.Background()
-	templateResponse, err := a.client.Generate(ctx, prompt)
+	templateResponse, err := a.generate(systemPrompt, userPrompt, false)
 	if err != nil {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
@@ -990,10 +993,22 @@ func (a *AI) TranslateText(englishText, toLanguage string) string {
 
 func cleanResponse(response string) string {
 	response = removeThinking(response)
-	response = strings.Replace(response, "“", "\"", -1)
-	response = strings.Replace(response, "”", "\"", -1)
+	response = strings.Replace(response, "\u201c", "\"", -1)
+	response = strings.Replace(response, "\u201d", "\"", -1)
 
-	return gollm.CleanResponse(response)
+	// Clean JSON response
+	response = strings.TrimSpace(response)
+	if strings.HasPrefix(response, "```json") {
+		response = strings.TrimPrefix(response, "```json")
+		response = strings.TrimSuffix(response, "```")
+		response = strings.TrimSpace(response)
+	} else if strings.HasPrefix(response, "```") {
+		response = strings.TrimPrefix(response, "```")
+		response = strings.TrimSuffix(response, "```")
+		response = strings.TrimSpace(response)
+	}
+
+	return response
 }
 
 func removeThinking(response string) string {
@@ -1013,5 +1028,5 @@ func removeThinking(response string) string {
 		}
 	}
 
-	return strings.Join(clean, "\n")
+	return story.RemoveEmojis(strings.Join(clean, "\n"))
 }

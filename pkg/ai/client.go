@@ -1,146 +1,130 @@
 package ai
 
 import (
+	"context"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/andrejsstepanovs/go-litellm/client"
+	"github.com/andrejsstepanovs/go-litellm/conf/connections/litellm"
+	"github.com/andrejsstepanovs/go-litellm/models"
+	"github.com/andrejsstepanovs/go-litellm/request"
 	"github.com/spf13/viper"
-	"github.com/teilomillet/gollm"
-	"github.com/teilomillet/gollm/llm"
-	"github.com/teilomillet/gollm/providers"
-	"github.com/teilomillet/gollm/utils"
 )
 
 type AI struct {
-	client   llm.LLM
+	client   *client.Litellm
+	ctx      context.Context
 	audience string
+	model    string
 }
 
 func NewAI(audience string) (*AI, error) {
-	provider := viper.GetString("STORYGEN_PROVIDER")
 	model := viper.GetString("STORYGEN_MODEL")
-
-	cfg, err := gollm.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	if model == "" {
+		model = "claude-3-7-sonnet-latest"
 	}
 
-	apiKey := ""
-	if provider != "ollama" && provider != "lmstudio" && provider != "litellm" {
-		keys := []string{
-			"ANTHROPIC_API_KEY",
-			"OPENAI_API_KEY",
-			"DEEPSEEK_API_KEY",
-			"OPENROUTER_API_KEY",
-			"MISTRAL_API_KEY",
-			"GOOGLE_API_KEY",
-			"GROQ_API_KEY",
-		}
-		for _, key := range keys {
-			if !strings.Contains(strings.ToLower(key), strings.ToLower(provider)) {
-				continue
-			}
-			apiKey = viper.GetString(key)
-			if apiKey != "" {
-				log.Printf("Using LLM provider %q with %q model\n", provider, model)
-				break
-			}
-		}
-
-		if apiKey == "" {
-			log.Fatalf("No API key found for provider %q", provider)
-		}
+	litellmHost := viper.GetString("LITELLM_HOST")
+	if litellmHost == "" {
+		litellmHost = "http://localhost:4000"
 	}
 
-	registry := providers.NewProviderRegistry()
-	registry.Register("deepseek", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"deepseek",
-			"https://api.deepseek.com/chat/completions",
-			apiKey,
-			model,
-			extraHeaders,
-		)
-	})
+	apiKey := viper.GetString("LITELLM_API_KEY")
+	if apiKey == "" {
+		apiKey = "sk-1234"
+	}
 
-	registry.Register("openrouter", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"openrouter",
-			"https://openrouter.ai/api/v1/chat/completions",
-			apiKey,
-			model,
-			extraHeaders,
-		)
-	})
-
-	registry.Register("mistral", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"mistral",
-			"https://api.mistral.ai/v1/chat/completions",
-			apiKey,
-			model,
-			extraHeaders,
-		)
-	})
-
-	registry.Register("google", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"google",
-			"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-			apiKey,
-			model,
-			extraHeaders,
-		)
-	})
-
-	registry.Register("groq", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"groq",
-			"https://api.groq.com/openai/v1/chat/completions",
-			apiKey,
-			model,
-			extraHeaders,
-		)
-	})
-
-	registry.Register("lmstudio", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"lmstudio",
-			"http://localhost:1234/v1/chat/completions",
-			"lmstudio",
-			model,
-			extraHeaders,
-		)
-	})
-
-	registry.Register("litellm", func(apiKey, model string, extraHeaders map[string]string) providers.Provider {
-		return NewCustomOpenAIProvider(
-			"litellm",
-			"http://localhost:4000/v1/chat/completions",
-			"sk-1234",
-			model,
-			extraHeaders,
-		)
-	})
-
-	cfg.Provider = provider
-	cfg.APIKeys = map[string]string{provider: apiKey}
-	cfg.Model = model
-	cfg.MaxTokens = 4096
-	cfg.MaxRetries = 3
-	cfg.Timeout = time.Minute * 30
-	cfg.RetryDelay = time.Second * 10
-	cfg.LogLevel = gollm.LogLevelInfo
-	conn, err := llm.NewLLM(cfg, utils.NewLogger(cfg.LogLevel), registry)
-
+	// Parse base URL for LiteLLM service
+	baseURL, err := url.Parse(litellmHost)
 	if err != nil {
-		log.Fatalf("Failed to create LLM: %v", err)
+		log.Fatalf("Failed to parse LiteLLM URL: %v", err)
 		return nil, err
 	}
 
+	// Configure connection with different timeout targets
+	conn := litellm.Connection{
+		URL: *baseURL,
+		Targets: litellm.Targets{
+			System: litellm.Target{
+				Timeout:          time.Second * 30,
+				RetryInterval:    time.Second * 2,
+				RetryMaxAttempts: 3,
+				RetryBackoffRate: 1.5,
+				MaxRetry:         3,
+			},
+			LLM: litellm.Target{
+				Timeout:          time.Minute * 5,
+				RetryInterval:    time.Second * 2,
+				RetryMaxAttempts: 3,
+				RetryBackoffRate: 1.5,
+				MaxRetry:         3,
+			},
+			MCP: litellm.Target{
+				Timeout:          time.Minute * 5,
+				RetryInterval:    time.Second * 2,
+				RetryMaxAttempts: 3,
+				RetryBackoffRate: 1.5,
+				MaxRetry:         3,
+			},
+		},
+	}
+
+	// Validate connection configuration
+	if err := conn.Validate(); err != nil {
+		log.Fatalf("Connection validation failed: %v", err)
+		return nil, err
+	}
+
+	// Create client configuration
+	cfg := client.Config{
+		APIKey:      apiKey,
+		Temperature: 0.7,
+	}
+
+	// Initialize client
+	litellmClient, err := client.New(cfg, conn)
+	if err != nil {
+		log.Fatalf("Failed to create LiteLLM client: %v", err)
+		return nil, err
+	}
+
+	log.Printf("Using LiteLLM with model %q\n", model)
+
 	return &AI{
-		client:   conn,
+		client:   litellmClient,
+		ctx:      context.Background(),
 		audience: audience,
+		model:    model,
 	}, nil
+}
+
+// TextToSpeech converts text to speech using the configured TTS model
+// Returns the path to the generated audio file
+func (a *AI) TextToSpeech(text, voice, instructions string, speed float64) (string, error) {
+	ttsModel := viper.GetString("STORYGEN_TTS_MODEL")
+	if ttsModel == "" {
+		ttsModel = "tts-openai"
+	}
+
+	speechRequest := request.Speech{
+		Model: models.ModelID(ttsModel),
+		Input: text,
+		Voice: voice,
+	}
+
+	if strings.Contains(ttsModel, "openai") {
+		speechRequest.Instructions = instructions
+		speechRequest.Speed = speed
+		speechRequest.ResponseFormat = "mp3"
+	}
+
+	resp, err := a.client.TextToSpeech(a.ctx, speechRequest)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Full, nil
 }

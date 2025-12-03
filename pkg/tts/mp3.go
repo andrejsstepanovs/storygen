@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/hyacinthus/mp3join"
 )
@@ -52,6 +53,12 @@ func JoinMp3Files(files []string, output string, inbetweenFile string) error {
 
 	log.Println("Joining")
 	dest := joiner.Reader()
+
+	// Ensure the output directory exists
+	outputDir := filepath.Dir(output)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return err
+	}
 
 	outFile, err := os.Create(output)
 	if err != nil {

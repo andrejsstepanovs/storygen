@@ -9,8 +9,6 @@ type Voice struct {
 
 type VoiceProvider struct {
 	Provider string
-	APIKey   string
-	Model    string
 	Voice    string
 	Speed    float64
 }

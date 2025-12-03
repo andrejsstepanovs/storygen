@@ -33,8 +33,8 @@ func main() {
 
 func initConfig() {
 	//Step 1: Set the config file name and type
-	viper.SetConfigName("app") // Name of the config file (without extension)
-	viper.SetConfigType("env") // Type of the config file
+	viper.SetConfigName("storygen") // Name of the config file (without extension)
+	viper.SetConfigType("env")      // Type of the config file
 
 	// Step 2: Add search paths for the config file
 	// First, look in the current directory
@@ -55,8 +55,7 @@ func initConfig() {
 		} else {
 			log.Println("Error reading config file:", err)
 		}
-		return
 	}
 
-	return
+	log.Println("config loaded")
 }

@@ -3,7 +3,7 @@ package tts
 import (
 	"bytes"
 	"fmt"
-	"net/http"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -11,21 +11,14 @@ import (
 	"time"
 
 	"github.com/andrejsstepanovs/storygen/pkg/story"
-	"github.com/andrejsstepanovs/storygen/pkg/tts/handlers"
 )
 
-func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool) (string, error) {
-	openaiHandler := &handlers.TTS{
-		APIKey:          voice.Provider.APIKey,
-		Model:           voice.Provider.Model,
-		Voice:           voice.Provider.Voice,
-		Instructions:    voice.Instruction.String(),
-		Speed:           voice.Provider.Speed,
-		Client:          &http.Client{},
-		MaxRetries:      3,               // Retry up to 3 times
-		RetryDelay:      2 * time.Second, // Start with 2 seconds delay
-		RetryMultiplier: 1.5,             // Increase delay by 50% each retry
-	}
+// TTSConverter interface for text-to-speech conversion
+type TTSConverter interface {
+	Convert(text, voice, instructions string, speed float64) (string, error)
+}
+
+func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, splitLen int, postProcess bool, converter TTSConverter) (string, error) {
 
 	files := make([]string, 0)
 
@@ -62,11 +55,22 @@ func TextToSpeech(dir, outputFilePath, textToSpeech string, voice story.Voice, s
 
 			fmt.Printf(">>> %s\n%s\n<<<\n", targetFile, cleanContent)
 
-			err := openaiHandler.Convert(cleanContent, targetFile)
+			// Use the converter interface to generate speech
+			audioFilePath, err := converter.Convert(cleanContent, voice.Provider.Voice, voice.Instruction.String(), voice.Provider.Speed)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to convert text to speech: %w", err)
 			}
-			time.Sleep(time.Second * 1) // desperate try to fix openai broken responses. looks like its working!
+
+			// Copy the generated file to the target location
+			err = copyFile(audioFilePath, targetFile)
+			if err != nil {
+				return "", fmt.Errorf("failed to copy audio file: %w", err)
+			}
+
+			// Clean up the temporary file
+			_ = os.Remove(audioFilePath)
+
+			time.Sleep(time.Second * 1) // Rate limiting
 
 			files = append(files, targetFile)
 		}
@@ -160,4 +164,32 @@ func postProcessSilenceRemoval(inputFile, outputFile string) error {
 	}
 
 	return nil
+}
+
+// copyFile copies a file from src to dst, creating directories as needed
+func copyFile(src, dst string) error {
+	// Ensure the destination directory exists
+	dstDir := path.Dir(dst)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	return destFile.Sync()
 }

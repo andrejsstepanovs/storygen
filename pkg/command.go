@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/andrejsstepanovs/storygen/pkg/ai"
 	"github.com/andrejsstepanovs/storygen/pkg/story"
@@ -140,7 +141,7 @@ func newStoryCompetitionCommand(llm *ai.AI) *cobra.Command {
 			log.Println("JSON saved")
 			log.Println(file)
 
-			ToVoice(stories[0], file, stories[0].BuildContent(story.TextChapter, story.TextTheEnd))
+			ToVoice(llm, stories[0], file, stories[0].BuildContent(story.TextChapter, story.TextTheEnd))
 
 			return nil
 		},
@@ -299,7 +300,7 @@ func newTranslateCommand(llm *ai.AI) *cobra.Command {
 			//}
 
 			soundFile := file[:len(file)-4] + "mp3"
-			ToVoice(translated, toLang+"_"+soundFile, translated.BuildContent(chapter, theEnd))
+			ToVoice(llm, translated, toLang+"_"+soundFile, translated.BuildContent(chapter, theEnd))
 
 			return nil
 		},
@@ -385,14 +386,14 @@ func newWorkCommand(llm *ai.AI) *cobra.Command {
 				log.Println(toLang, " JSON saved")
 				file = toLang + "_" + file
 			}
-			ToVoice(s, file, s.BuildContent(chapter, theEnd))
+			ToVoice(llm, s, file, s.BuildContent(chapter, theEnd))
 
 			return err
 		},
 	}
 }
 
-func ToVoice(s story.Story, file, content string) {
+func ToVoice(llm *ai.AI, s story.Story, file, content string) {
 	soundFile := file + ".mp3"
 	lastDot := strings.LastIndex(file, ".")
 	if lastDot >= 0 {
@@ -408,9 +409,7 @@ func ToVoice(s story.Story, file, content string) {
 
 	voice := story.Voice{
 		Provider: story.VoiceProvider{
-			Provider: "openai",
-			APIKey:   viper.GetString("OPENAI_API_KEY"),
-			Model:    viper.GetString("STORYGEN_OPENAI_TTS_MODEL"),
+			Provider: "litellm",
 			Voice:    viper.GetString("STORYGEN_VOICE"),
 			Speed:    speed,
 		},
@@ -424,9 +423,17 @@ func ToVoice(s story.Story, file, content string) {
 		},
 	}
 
+	// Create TTS converter using AI client
+	ttsConverter := &tts.LiteLLMAdapter{
+		TextToSpeechFunc: llm.TextToSpeech,
+		MaxRetries:       3,
+		RetryDelay:       2 * time.Second,
+		RetryMultiplier:  1.5,
+	}
+
 	postProcess := viper.GetBool("STORYGEN_TTS_POSTPROCESS")
 	splitLen := viper.GetInt("STORYGEN_TTS_SPLITLEN")
-	finalSoundFile, err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess)
+	finalSoundFile, err := tts.TextToSpeech(targetDir, soundFile, content, voice, splitLen, postProcess, ttsConverter)
 	if err != nil {
 		log.Printf("Error during Text to Speech: %v\n", err)
 		log.Fatalln(err)
