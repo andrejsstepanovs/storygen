@@ -99,11 +99,29 @@ func (a *AI) SuggestStoryFixes(storyEl story.Story, problem story.Problem, addre
 		if err == nil {
 			return suggestions
 		}
-		log.Println("Failed to suggest story fixes for problem chapter. Trying again.")
-		problemInjsonTxt = fmt.Sprintf("Your last answer contained invalid JSON: ----\n\n%s\n\n----. Try again and this time make sure your JSON is valid!", query)
+		log.Printf("Failed to suggest story fixes for chapter %d (attempt %d/10): %v", problem.Chapter, i+1, err)
+		if query != "" {
+			log.Printf("AI Response was: %s", query)
+		}
+
+		// Provide specific feedback based on the error
+		if strings.Contains(err.Error(), "cannot unmarshal object") {
+			problemInjsonTxt = fmt.Sprintf("\n\n**ERROR: You returned a single object instead of an array!**\n"+
+				"You MUST return an array starting with [ and ending with ], even if there's only one suggestion.\n"+
+				"Correct format: [{\"chapter_number_int\": 1, \"chapter_name\": \"Title\", \"suggestions_array_string\": [\"Fix this\"]}]\n"+
+				"Your previous incorrect response: %s", query)
+		} else if strings.Contains(query, "```") {
+			problemInjsonTxt = fmt.Sprintf("\n\n**ERROR: You wrapped the JSON in markdown code blocks!**\n"+
+				"Do NOT use ```json or ``` markers. Return ONLY the raw JSON array.\n"+
+				"Your previous incorrect response: %s", query)
+		} else {
+			problemInjsonTxt = fmt.Sprintf("\n\n**ERROR: Invalid JSON format: %v**\n"+
+				"Return a valid JSON array: [{\"chapter_number_int\": 1, \"chapter_name\": \"Title\", \"suggestions_array_string\": [\"Fix\"]}]\n"+
+				"Your previous response: %s", err, query)
+		}
 	}
 
-	log.Fatalf("Failed to suggest story fixes for problem chapter: %v", problem.Chapter)
+	log.Fatalf("Failed to suggest story fixes for problem chapter %d after 10 attempts", problem.Chapter)
 	return story.Suggestions{}
 }
 
@@ -112,61 +130,34 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		storyEl.Chapters = storyEl.Chapters[:problem.Chapter]
 	}
 
-	suggestions := story.Suggestions{
-		{
-			Chapter:     1,
-			ChapterName: "The Beginning",
-			Suggestions: []string{
-				"Introduce a dolphin that was following the boat in chapter 3",
-				"Make protagonist angry at the doctor for not knowing the cat name, because this will be useful in ending chapter.",
-			},
-		},
-		{
-			Chapter:     problem.Chapter,
-			ChapterName: problem.ChapterName,
-			Suggestions: []string{
-				"Add a scene where the doctor is told about the cat name",
-				"Show where the doctor is told about the cat name",
-			},
-		},
-	}
+	systemPrompt := "You are a story editor suggesting fixes for story chapters to resolve issues. Your suggestions will be used to re-write chapters later. Return ONLY raw JSON without any markdown formatting or code blocks."
 
-	systemPrompt := "You are story writer that is suggesting a fixes for story chapters to resolve found issues. Your suggestions will be used to re-write the story chapters later on."
-
-	userPrompt := fmt.Sprintf("Analyze the %s story chapter %d %s issues:\n"+
-		"<issues>\n%s\n</issues>\n\n"+
-		"Here is our story until %d chapter: \n```json\n%s\n```\n. "+
-		"Analyze this \"%s\" story and pinpoint chapter numbers that need adjustments and suggestions how to do it.\n"+
-		"<ignore_known_suggestions>\n```json\n%s\n```</ignore_known_suggestions>\n"+
-		"There are maybe more chapters but lets focus on story until this moment. "+
-		"Think about what needs to be changed in what chapter and answer in great detail how to fix it (within given story chapter and with minimal text alterations)."+
-		"# Instructions:"+
-		"- Fix this or past chapters so story is coherent, entertaining and makes sense (use given suggestions).\n"+
-		"- Don't challenge (and keep) the %s story writing style.\n"+
-		"- Story writing style was already predefined and we are sticking with it.\n"+
-		"- You do not need to re-write the chapter text, just suggestions how to do it and where and in what chapter.\n"+
-		"- Focus on fixing the most illogical or problematic aspects of this %s story first. Avoid being overly pedantic - perfection isn't the goal here. Address major inconsistencies, plot holes, or pacing issues before tackling smaller details. Only suggest minor improvements (and sparingly) once the bigger issues are resolved.\n"+
-		"- Keep feedback practical and audience-appropriate.\n"+
-		"- Be creative with suggestions to fix issues at hand.\n"+
-		"- Be swift and decisive. Suggest changes that can be done with reasonable amount of new text. "+
-		"- It is OK to extend the story if that is necessary to fix the plot.\n"+
-		"- Come up with 5 or less suggestions (0 is all feels good enough).\n"+
-		"- Don't suggest creating new chapters. We are sticking with existing chapter count.\n\n"+
-		"# Answer:\n"+
-		"- %s %s\n"+
-		"- Return empty JSON array (`[]`) if there is nothing important to fix. "+
-		"- Example format: %s\n"+
-		"%s",
-		a.audience, problem.Chapter, problem.ChapterName,
+	userPrompt := fmt.Sprintf("Analyze chapter %d (%s) of this %s story and suggest fixes for the following issues:\n\n"+
+		"**Issues to fix:**\n%s\n\n"+
+		"**Story context (chapters 1-%d):**\n```json\n%s\n```\n\n"+
+		"**Already addressed suggestions (ignore these):**\n```json\n%s\n```\n\n"+
+		"**Instructions:**\n"+
+		"1. Suggest specific, actionable changes to fix the issues\n"+
+		"2. Identify which chapter(s) need changes (current or earlier chapters)\n"+
+		"3. Keep suggestions practical - minimal text changes preferred\n"+
+		"4. Focus on major plot holes and inconsistencies, not minor details\n"+
+		"5. Maximum 5 suggestions total (or return empty array if no fixes needed)\n"+
+		"6. Do not suggest creating new chapters\n"+
+		"7. Maintain the existing %s story writing style\n\n"+
+		"**CRITICAL: Response format requirements:**\n"+
+		"- Return ONLY a JSON array, nothing else\n"+
+		"- Do NOT wrap the JSON in markdown code blocks (no ```json or ```)\n"+
+		"- Do NOT add any explanatory text before or after the JSON\n"+
+		"- Start your response with [ and end with ]\n"+
+		"- Each object in the array must have: chapter_number_int (integer), chapter_name (string), suggestions_array_string (array of strings)\n"+
+		"- Return empty array [] if no important fixes are needed\n\n"+
+		"Example valid response: [{\"chapter_number_int\": 1, \"chapter_name\": \"Title\", \"suggestions_array_string\": [\"Fix X\", \"Change Y\"]}]%s",
+		problem.Chapter, problem.ChapterName, a.audience,
 		problem.ToJson(),
 		problem.Chapter,
 		storyEl.ToJson(),
-		a.audience,
 		addressedSuggestions.ToJson(),
 		a.audience,
-		a.audience,
-		ForceJson, GeneralInstruction,
-		suggestions.ToJson(),
 		problemInjsonTxt)
 
 	// Create JSON schema for structured output
@@ -218,11 +209,45 @@ func (a *AI) trySuggestStoryFixes(storyEl story.Story, problem story.Problem, ad
 		return story.Suggestions{}, "", fmt.Errorf("completion failed: %w", err)
 	}
 
-	var picked story.Suggestions
-	err = json.Unmarshal(resp.Bytes(), &picked)
-	if err != nil {
-		return story.Suggestions{}, resp.String(), fmt.Errorf("failed to parse JSON: %w", err)
+	respStr := resp.String()
+
+	// Check if response is empty
+	if len(respStr) == 0 {
+		return story.Suggestions{}, "", fmt.Errorf("received empty response from AI")
 	}
+
+	// Clean the response - remove markdown code blocks if present
+	respStr = cleanResponse(respStr)
+
+	// Extract just the JSON array - find the first [ and last ]
+	startIdx := strings.Index(respStr, "[")
+	if startIdx == -1 {
+		return story.Suggestions{}, respStr, fmt.Errorf("no JSON array found in response (missing '[')")
+	}
+
+	// Find the matching closing bracket
+	endIdx := strings.LastIndex(respStr, "]")
+	if endIdx == -1 || endIdx < startIdx {
+		return story.Suggestions{}, respStr, fmt.Errorf("no valid JSON array found in response (missing ']')")
+	}
+
+	// Extract just the JSON array portion
+	jsonStr := respStr[startIdx : endIdx+1]
+
+	// Log the extracted JSON for debugging
+	if len(jsonStr) > 500 {
+		log.Printf("Extracted JSON (truncated): %s...", jsonStr[:500])
+	} else {
+		log.Printf("Extracted JSON: %s", jsonStr)
+	}
+
+	var picked story.Suggestions
+	err = json.Unmarshal([]byte(jsonStr), &picked)
+	if err != nil {
+		return story.Suggestions{}, respStr, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	log.Printf("Successfully parsed %d suggestions", len(picked))
 
 	return picked, "", nil
 }
@@ -369,10 +394,28 @@ func (a *AI) findStoryLogicalProblems(storyText string, loop, maxLoops int, prom
 		return story.Problems{}, "", fmt.Errorf("completion failed: %w", err)
 	}
 
+	respStr := resp.String()
+
+	// Clean the response
+	respStr = cleanResponse(respStr)
+
+	// Extract just the JSON array - find the first [ and last ]
+	startIdx := strings.Index(respStr, "[")
+	if startIdx == -1 {
+		return story.Problems{}, respStr, fmt.Errorf("no JSON array found in response (missing '[')")
+	}
+
+	endIdx := strings.LastIndex(respStr, "]")
+	if endIdx == -1 || endIdx < startIdx {
+		return story.Problems{}, respStr, fmt.Errorf("no valid JSON array found in response (missing ']')")
+	}
+
+	jsonStr := respStr[startIdx : endIdx+1]
+
 	var picked story.Problems
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(jsonStr), &picked)
 	if err != nil {
-		return story.Problems{}, resp.String(), fmt.Errorf("failed to parse JSON: %w", err)
+		return story.Problems{}, respStr, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	ret := make(story.Problems, 0)
@@ -466,10 +509,22 @@ func (a *AI) FigureStoryProtagonists(storyEl story.Story) story.Protagonists {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	respStr := resp.String()
+	respStr = cleanResponse(respStr)
+
+	// Extract JSON array
+	startIdx := strings.Index(respStr, "[")
+	if startIdx != -1 {
+		endIdx := strings.LastIndex(respStr, "]")
+		if endIdx != -1 && endIdx > startIdx {
+			respStr = respStr[startIdx : endIdx+1]
+		}
+	}
+
 	var picked story.Protagonists
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(respStr), &picked)
 	if err != nil {
-		log.Fatalf("Failed to parse protagonists as JSON %s: %v", resp.String(), err)
+		log.Fatalf("Failed to parse protagonists as JSON %s: %v", respStr, err)
 	}
 
 	return picked
@@ -537,8 +592,20 @@ func (a *AI) FigureStoryMorales(storyEl story.Story) story.Morales {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	respStr := resp.String()
+	respStr = cleanResponse(respStr)
+
+	// Extract JSON array
+	startIdx := strings.Index(respStr, "[")
+	if startIdx != -1 {
+		endIdx := strings.LastIndex(respStr, "]")
+		if endIdx != -1 && endIdx > startIdx {
+			respStr = respStr[startIdx : endIdx+1]
+		}
+	}
+
 	var picked []string
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(respStr), &picked)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON for morales response: %v", err)
 	}
@@ -589,8 +656,20 @@ func (a *AI) FigureStoryIdeas(count int) []string {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	respStr := resp.String()
+	respStr = cleanResponse(respStr)
+
+	// Extract JSON array
+	startIdx := strings.Index(respStr, "[")
+	if startIdx != -1 {
+		endIdx := strings.LastIndex(respStr, "]")
+		if endIdx != -1 && endIdx > startIdx {
+			respStr = respStr[startIdx : endIdx+1]
+		}
+	}
+
 	var picked []string
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(respStr), &picked)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON for story ideas response: %v", err)
 	}
@@ -776,8 +855,20 @@ func (a *AI) FigureStoryTimePeriod(storyEl story.Story) story.TimePeriod {
 		log.Fatalf("Failed to generate template response: %v", err)
 	}
 
+	respStr := resp.String()
+	respStr = cleanResponse(respStr)
+
+	// Extract JSON array
+	startIdx := strings.Index(respStr, "[")
+	if startIdx != -1 {
+		endIdx := strings.LastIndex(respStr, "]")
+		if endIdx != -1 && endIdx > startIdx {
+			respStr = respStr[startIdx : endIdx+1]
+		}
+	}
+
 	var picked []string
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(respStr), &picked)
 	if err != nil {
 		log.Fatalf("Failed to parse time period response as JSON: %v", err)
 	}
@@ -833,8 +924,20 @@ func (a *AI) FigureStoryChapterTitles(storyEl story.Story, chapterCount int) ([]
 		return []string{}, fmt.Errorf("completion failed: %w", err)
 	}
 
+	respStr := resp.String()
+	respStr = cleanResponse(respStr)
+
+	// Extract JSON array
+	startIdx := strings.Index(respStr, "[")
+	if startIdx != -1 {
+		endIdx := strings.LastIndex(respStr, "]")
+		if endIdx != -1 && endIdx > startIdx {
+			respStr = respStr[startIdx : endIdx+1]
+		}
+	}
+
 	var picked []string
-	err = json.Unmarshal(resp.Bytes(), &picked)
+	err = json.Unmarshal([]byte(respStr), &picked)
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to parse chapter titles as JSON: %w", err)
 	}
